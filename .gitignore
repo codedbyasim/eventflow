@@ -1,0 +1,83 @@
+# ============================================================
+# Miscellaneous
+# ============================================================
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# ============================================================
+# IDE / Editor
+# ============================================================
+*.iml
+*.ipr
+*.iws
+.idea/
+.vscode/
+
+# ============================================================
+# Flutter / Dart / Pub
+# ============================================================
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# ============================================================
+# Symbolication / Obfuscation
+# ============================================================
+app.*.symbols
+app.*.map.json
+
+# ============================================================
+# Android build artifacts
+# ============================================================
+/android/app/debug/
+/android/app/profile/
+/android/app/release/
+/android/.gradle/
+/android/.kotlin/
+android/local.properties
+android/**/*.iml
+
+# ============================================================
+# SENSITIVE / SECRET FILES — DO NOT COMMIT
+# ============================================================
+
+# Firebase credentials — contains real API keys
+lib/firebase_options.dart
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# Firebase CLI config (contains project IDs / app IDs)
+firebase.json
+.firebaserc
+
+# Any .env files
+.env
+.env.*
+*.env
+
+# ============================================================
+# Project-specific scratch / temp files
+# ============================================================
+# AI conversation log accidentally placed in project root
+matches.txt
+
+# ============================================================
+# macOS
+# ============================================================
+**/.DS_Store
