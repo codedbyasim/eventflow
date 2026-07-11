@@ -85,4 +85,4 @@ Launch the app in debug mode on your connected emulator:
 ```bash
 flutter run
 ```
-*Note: The Android Emulator routes to localhost on `http://10.0.2.2:8000`. This is default-configured in `BackendService`.*
+*Note: The app defaults to the deployed backend at `https://eventflow-backend-3x0m.onrender.com`. For local development, you can override it with `BACKEND_URL` (for example `http://10.0.2.2:8000` for the Android Emulator).*

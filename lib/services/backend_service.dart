@@ -18,12 +18,13 @@ class BackendService {
   static final BackendService instance = BackendService._();
 
   /// Base URL of the FastAPI backend.
-  /// In dev: http://10.0.2.2:8000 (Android emulator → host machine)
-  ///         http://localhost:8000  (web/desktop)
-  /// Override via environment at build time if needed.
+  /// Production default: https://eventflow-backend-3x0m.onrender.com
+  /// For local development, override with BACKEND_URL, e.g.
+  ///   http://10.0.2.2:8000 (Android emulator → host machine)
+  ///   http://localhost:8000 (web/desktop)
   static const String _baseUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'http://10.0.2.2:8000',
+    defaultValue: 'https://eventflow-backend-3x0m.onrender.com',
   );
 
   /// Get the current user's Firebase ID token (auto-refreshed when needed).
