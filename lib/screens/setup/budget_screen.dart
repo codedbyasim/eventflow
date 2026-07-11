@@ -7,6 +7,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/localization/language_provider.dart';
 import '../../models/event_setup_model.dart';
 import '../../providers/budget_provider.dart';
+import '../../services/event_service.dart';
+import '../../services/backend_service.dart';
 import '../negotiation/live_dashboard_screen.dart';
 
 class ThousandsSeparatorInputFormatter extends TextInputFormatter {
@@ -41,6 +43,8 @@ class BudgetScreen extends StatefulWidget {
 class _BudgetScreenState extends State<BudgetScreen> {
   late BudgetProvider _budgetProvider;
   final TextEditingController _budgetController = TextEditingController();
+  bool _isSubmitting = false;
+  double _flexibilityValue = 0.15;
   
   final List<Color> _chartColors = [
     AppColors.goldenBrown,
@@ -366,6 +370,75 @@ class _BudgetScreenState extends State<BudgetScreen> {
                         ),
                       ),
                       
+                    // SECTION 3.5: Negotiation Flexibility Range
+                    if (hasBudget)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
+                          child: Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 16, offset: const Offset(0, 4))],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: isUrdu ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isUrdu ? "بات چیت کی لچک (Negotiation Flexibility)" : "Negotiation Flexibility Range",
+                                  style: loc.fontStyle(fontSize: 15, fontWeight: FontWeight.bold, color: const Color(0xFF7A4E1E)),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  isUrdu
+                                      ? "یہ بتاتا ہے کہ AI ایجنٹ مناسب ڈیل حاصل کرنے کے لیے بجٹ سے کتنا اوپر جا سکتا ہے۔"
+                                      : "Allows the AI Agent to negotiate up to this percentage above allocations if needed to secure a deal.",
+                                  style: loc.fontStyle(fontSize: 12, color: Colors.grey.shade600),
+                                ),
+                                const SizedBox(height: 16),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      "0%",
+                                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
+                                    ),
+                                    Text(
+                                      "${(_flexibilityValue * 100).toStringAsFixed(0)}%",
+                                      style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.goldenBrown),
+                                    ),
+                                    Text(
+                                      "30%",
+                                      style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
+                                SliderTheme(
+                                  data: SliderThemeData(
+                                    trackHeight: 4,
+                                    activeTrackColor: AppColors.goldenBrown,
+                                    inactiveTrackColor: AppColors.goldenBrown.withOpacity(0.2),
+                                    thumbColor: AppColors.goldenBrown,
+                                  ),
+                                  child: Slider(
+                                    value: _flexibilityValue,
+                                    min: 0.0,
+                                    max: 0.30,
+                                    divisions: 6,
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _flexibilityValue = val;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+
                     // SECTION 4: Pre-flight Summary
                     if (hasBudget)
                       SliverToBoxAdapter(
@@ -447,23 +520,8 @@ class _BudgetScreenState extends State<BudgetScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                       disabledBackgroundColor: const Color(0xFFCCCCCC),
                     ),
-                    onPressed: hasBudget
-                        ? () {
-                            final updatedModel = widget.model.copyWith(totalBudget: _budgetProvider.totalBudget);
-                            Navigator.push(
-                              context,
-                              PageRouteBuilder(
-                                transitionDuration: const Duration(milliseconds: 600),
-                                pageBuilder: (context, animation, secondaryAnimation) => LiveDashboardScreen(
-                                  model: updatedModel,
-                                  allocations: _budgetProvider.allocations,
-                                ),
-                                transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                  return FadeTransition(opacity: animation, child: child);
-                                },
-                              ),
-                            );
-                          }
+                    onPressed: (hasBudget && !_isSubmitting)
+                        ? () => _submitAndLaunch()
                         : null,
                     child: Text(
                       loc.get('launch_negotiations'),
@@ -481,6 +539,58 @@ class _BudgetScreenState extends State<BudgetScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _submitAndLaunch() async {
+    if (_isSubmitting) return;
+    setState(() => _isSubmitting = true);
+
+    final updatedModel = widget.model.copyWith(
+      totalBudget: _budgetProvider.totalBudget,
+      negotiationFlexibility: _flexibilityValue,
+    );
+
+    try {
+      // FR-EVT-07: submit to backend — triggers Analyzer Agent within 3s
+      final result = await EventService.instance.submitEvent(
+        updatedModel,
+        perCategoryMax: _budgetProvider.allocations.map(
+          (k, v) => MapEntry(k, v),
+        ),
+      );
+
+      if (!mounted) return;
+
+      Navigator.push(
+        context,
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 600),
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              LiveDashboardScreen(
+            model: updatedModel,
+            allocations: _budgetProvider.allocations,
+            eventFirestoreId: result.eventFirestoreId, // real ID from backend
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      );
+    } on BackendException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Could not start negotiations: ${e.message}'),
+        backgroundColor: Colors.redAccent,
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Network error — please try again.'),
+        backgroundColor: Colors.redAccent,
+      ));
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
   }
 
   Widget _buildQuickBudgetChip(String label, int amount) {

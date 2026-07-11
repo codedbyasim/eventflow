@@ -61,6 +61,8 @@ android/**/*.iml
 lib/firebase_options.dart
 android/app/google-services.json
 ios/Runner/GoogleService-Info.plist
+*-firebase-adminsdk-*.json
+firebase-service-account.json
 
 # Firebase CLI config (contains project IDs / app IDs)
 firebase.json

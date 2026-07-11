@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../widgets/app_logo.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   final bool isReturningUser;
@@ -65,16 +66,30 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with TickerProvider
         final doc = await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).get();
         if (!mounted) return;
         
-        if (doc.exists && doc.data() != null && doc.data()!.containsKey('vendorProfile')) {
-          if (doc.data()!['onboardingComplete'] == true) {
-            context.go('/vendor/home');
+        final data = doc.data();
+        if (doc.exists && data != null) {
+          final role = data['role'] as String? ?? 'customer';
+          if (role == 'vendor') {
+            if (data['onboardingComplete'] == true) {
+              context.go('/vendor/home');
+            } else {
+              context.go('/vendor/onboarding');
+            }
           } else {
-            context.go('/vendor/onboarding');
+            context.go('/customer/home');
           }
         } else {
           context.go('/customer/home');
         }
       } else {
+        // Create user document in Firestore with the selected role
+        await FirebaseFirestore.instance.collection('users').doc(credential.user!.uid).set({
+          'uid': credential.user!.uid,
+          'email': credential.user!.email,
+          'role': _selectedRole,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+
         // Check role and navigate
         if (_selectedRole == 'vendor') {
           context.go('/vendor/onboarding');
@@ -109,17 +124,8 @@ class _SignInScreenState extends ConsumerState<SignInScreen> with TickerProvider
                 children: [
                   const SizedBox(height: 48),
                   // Logo
-                  Center(
-                    child: Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        color: AppColors.mossGreen,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [BoxShadow(color: AppColors.mossGreen.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))],
-                      ),
-                      child: const Icon(Icons.event, color: Colors.white, size: 40),
-                    ),
+                  const Center(
+                    child: AppLogo(size: 80),
                   ),
                   const SizedBox(height: 24),
                   Text(tr('eventflow'), textAlign: TextAlign.center, style: GoogleFonts.playfairDisplay(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.black87)),

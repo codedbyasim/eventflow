@@ -58,7 +58,7 @@ class VendorBooking {
 final vendorBookingsProvider = StreamProvider.family<List<VendorBooking>, String>((ref, uid) {
   return FirebaseFirestore.instance
       .collection('negotiations')
-      .where('vendorId', isEqualTo: uid)
+      .where('vendorFirebaseUid', isEqualTo: uid)
       .where('status', isEqualTo: 'deal')
       .snapshots()
       .map((snapshot) {

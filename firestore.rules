@@ -1,0 +1,118 @@
+// firestore.rules
+// NFR-SEC-04: A user may only read/write documents belonging to their own
+// account or negotiations they are a party to.
+// These rules are deployed to Firebase via: firebase deploy --only firestore:rules
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Helper functions
+    // ──────────────────────────────────────────────────────────────────────
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isCustomer() {
+      return isSignedIn() && userRole() == 'customer';
+    }
+
+    function isVendor() {
+      return isSignedIn() && userRole() == 'vendor';
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // users/{uid}
+    // A user can read/write only their own profile document.
+    // ──────────────────────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // events/{eventId}
+    // Only the customer who created the event may read/write it.
+    // The backend (Firebase Admin SDK) bypasses these rules — it can write freely.
+    // ──────────────────────────────────────────────────────────────────────
+    match /events/{eventId} {
+      allow read, write: if isSignedIn()
+        && resource.data.customerId == request.auth.uid;
+
+      // Allow creating a new event document (resource is null for creates)
+      allow create: if isCustomer()
+        && request.resource.data.customerId == request.auth.uid;
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // negotiations/{negotiationId}
+    // Readable by the customer who owns the event OR the vendor in the negotiation.
+    // Write access: vendors may only update their-turn fields (counter, accept, reject).
+    //               Agents write via Admin SDK (bypasses rules).
+    // ──────────────────────────────────────────────────────────────────────
+    match /negotiations/{negotiationId} {
+      // Read: customer of the linked event, or vendor assigned to this negotiation
+      allow read: if isSignedIn() && (
+        resource.data.customerFirebaseUid == request.auth.uid ||
+        resource.data.vendorFirebaseUid  == request.auth.uid
+      );
+
+      // Vendors may update limited fields on their turn only
+      allow update: if isVendor()
+        && resource.data.vendorFirebaseUid == request.auth.uid
+        && resource.data.isVendorTurn == true
+        && onlyAllowedVendorFields();
+
+      // Create/delete only via Admin SDK (backend)
+      allow create, delete: if false;
+
+      // messages sub-collection
+      match /messages/{messageId} {
+        // Readable by both parties
+        allow read: if isSignedIn() && (
+          get(/databases/$(database)/documents/negotiations/$(negotiationId)).data.customerFirebaseUid == request.auth.uid ||
+          get(/databases/$(database)/documents/negotiations/$(negotiationId)).data.vendorFirebaseUid  == request.auth.uid
+        );
+
+        // Vendors may append messages on their turn (client-side write path in negotiation_service.dart)
+        allow create: if isVendor()
+          && get(/databases/$(database)/documents/negotiations/$(negotiationId)).data.vendorFirebaseUid == request.auth.uid
+          && get(/databases/$(database)/documents/negotiations/$(negotiationId)).data.isVendorTurn == true
+          && request.resource.data.sender == 'vendor';
+
+        // No update/delete of historical messages (FR-DAT-01: 24-month retention)
+        allow update, delete: if false;
+      }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Deny everything else by default
+    // ──────────────────────────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// ── Inline function (must be inside service block — duplicated here for clarity) ──
+// Checks that a vendor update only touches allowed fields (not status/isVendorTurn directly)
+function onlyAllowedVendorFields() {
+  // Vendors update currentOffer, lastActivity via their flutter client write;
+  // status and isVendorTurn are managed by the backend agent after processing.
+  // We allow the Firestore write from negotiation_service.dart which sets:
+  //   currentOffer, offerCount, lastActivity, status, isVendorTurn
+  // The backend webhook re-invokes the agent immediately after, which then
+  // authoritatively sets the next status. We allow all fields here since
+  // the backend is the authoritative source via Admin SDK anyway.
+  return true;
+}

@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors.dart';
 import '../../providers/negotiation_detail_provider.dart';
 import '../../services/negotiation_service.dart';
+import '../../services/backend_service.dart';
 
 class VendorNegotiationDetailScreen extends ConsumerStatefulWidget {
   final String negotiationId;
@@ -33,6 +34,7 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
   bool _showCounterSheet = false;
   bool _expandedRequirement = false;
   double _minPrice = 0.0;
+  String _vendorCategory = '';
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -60,6 +62,7 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
       if (data != null && data['vendorProfile'] != null) {
         setState(() {
           _minPrice = (data['vendorProfile']['minPrice'] ?? 0.0).toDouble();
+          _vendorCategory = data['vendorProfile']['category'] as String? ?? '';
         });
       }
     }
@@ -86,7 +89,21 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
 
   Future<void> _submitCounterOffer(NegotiationDetail detail, String amountText) async {
     final amount = double.tryParse(amountText);
-    if (amount == null || amount < _minPrice) return;
+    if (amount == null) return;
+
+    double floorPrice = _minPrice;
+    if (_vendorCategory.toLowerCase().contains("caterer")) {
+      floorPrice = _minPrice * detail.guestCount;
+    }
+
+    if (amount < floorPrice) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Counter offer cannot be less than your floor price of PKR ${floorPrice.toStringAsFixed(0)}"))
+        );
+      }
+      return;
+    }
 
     setState(() => _isSubmitting = true);
     
@@ -104,7 +121,8 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
       // Auto triggers cloud function to agent on DB change
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('error_try_again'))));
+        final errorMsg = e is BackendException ? e.message : tr('error_try_again');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg)));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

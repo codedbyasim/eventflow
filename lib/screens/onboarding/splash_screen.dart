@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:easy_localization/easy_localization.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import 'sign_in_screen.dart';
 
@@ -38,6 +41,34 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     if (savedLang != null) {
       _hasSavedLanguage = true;
     }
+    
+    // Check if user is already logged in for session persistence
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      try {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+        if (mounted) {
+          if (doc.exists && doc.data() != null) {
+            final data = doc.data()!;
+            final role = data['role'] as String?;
+            if (role == 'vendor') {
+              if (data['onboardingComplete'] == true) {
+                context.go('/vendor/home');
+              } else {
+                context.go('/vendor/onboarding');
+              }
+              return;
+            } else if (role == 'customer') {
+              context.go('/customer/home');
+              return;
+            }
+          }
+        }
+      } catch (e) {
+        debugPrint('Auto-login session check failed: $e');
+      }
+    }
+    
     setState(() {
       _isLoading = false;
     });

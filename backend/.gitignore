@@ -1,0 +1,13 @@
+# backend/.gitignore
+.env
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+firebase-service-account.json
+*.log
