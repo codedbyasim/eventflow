@@ -7,6 +7,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../core/theme/app_colors.dart';
+import '../../services/backend_service.dart';
 
 class VendorOnboardingScreen extends StatefulWidget {
   const VendorOnboardingScreen({super.key});
@@ -115,6 +116,28 @@ class _VendorOnboardingScreenState extends State<VendorOnboardingScreen> {
           'createdAt': FieldValue.serverTimestamp(),
         }
       }, SetOptions(merge: true));
+
+      // Sync onboarding details to PostgreSQL database so they can match/claim negotiations
+      String pgCategory = 'Caterer';
+      switch (_selectedCategory) {
+        case 'caterer': pgCategory = 'Caterer'; break;
+        case 'decorator': pgCategory = 'Decorator'; break;
+        case 'photographer': pgCategory = 'Photographer'; break;
+        case 'dj_sound': pgCategory = 'DJ / Music'; break;
+        case 'tent': pgCategory = 'Tent / Marquee'; break;
+        case 'flowers': pgCategory = 'Flowers'; break;
+      }
+
+      await BackendService.instance.post(
+        '/users/onboard-vendor',
+        body: {
+          'business_name': _businessNameController.text.trim(),
+          'category': pgCategory,
+          'city': _selectedCity!.toLowerCase(),
+          'base_price': basePrice,
+          'min_price': minPrice,
+        },
+      );
 
       if (mounted) {
         context.go('/vendor/home');
@@ -333,6 +356,35 @@ class _VendorOnboardingScreenState extends State<VendorOnboardingScreen> {
   }
 
   Widget _buildStep3() {
+    // Dynamic text based on selected category
+    String pricingBasisEn = '';
+    String pricingBasisUr = '';
+    
+    switch (_selectedCategory) {
+      case 'caterer':
+        pricingBasisEn = 'Catering prices are calculated per person (per head). For example: PKR 2,000 per head.';
+        pricingBasisUr = 'کیٹرنگ کی قیمتیں فی کس (پر پرسن) شمار ہوتی ہیں۔ مثال کے طور پر: 2000 روپے فی کس۔';
+        break;
+      case 'tent':
+        pricingBasisEn = 'Enter your base hall/marquee setup fee. Additional seating is calculated at PKR 300 per head.';
+        pricingBasisUr = 'ہال/مارکی کا بنیادی کرایہ درج کریں۔ مہمانوں کے بیٹھنے کا کرایہ 300 روپے فی کس الگ سے شمار ہوگا۔';
+        break;
+      case 'decorator':
+        pricingBasisEn = 'Enter your base package rate. It will scale automatically by 1.25x for Outdoor events, and +5% for every 100 excess guests.';
+        pricingBasisUr = 'اپنے بنیادی پیکج کی قیمت درج کریں۔ آؤٹ ڈور ایونٹس کے لیے 1.25 گنا اور 100 سے زائد مہمانوں پر +5 فیصد خودکار طور پر بڑھے گی۔';
+        break;
+      case 'flowers':
+        pricingBasisEn = 'Enter your base floral package. It scales proportionally for guest counts above 100 guests.';
+        pricingBasisUr = 'اپنے پھولوں کے بنیادی پیکج کی قیمت درج کریں۔ 100 سے زائد مہمانوں کی صورت میں قیمت متناسب طور پر بڑھے گی۔';
+        break;
+      default:
+        pricingBasisEn = 'This is a flat rate package for a standard single-day event booking.';
+        pricingBasisUr = 'یہ ایک دن کے ایونٹ کی فلیٹ شرح (مقررہ قیمت) ہے۔';
+    }
+
+    final isUrdu = context.locale.languageCode == 'ur';
+    final pricingBasis = isUrdu ? pricingBasisUr : pricingBasisEn;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24.0),
       child: Column(
@@ -375,7 +427,49 @@ class _VendorOnboardingScreenState extends State<VendorOnboardingScreen> {
               );
             }).toList(),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 32),
+
+          // Dynamic pricing basis explanation card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.goldenBrown.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.goldenBrown.withValues(alpha: 0.25), width: 1.5),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.info_outline, color: AppColors.goldenBrown, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isUrdu ? 'قیمت کی بنیاد (Pricing Basis):' : 'Pricing Basis:',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF7A4E1E),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        pricingBasis,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          color: Colors.black87,
+                          height: isUrdu ? 1.8 : 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
           
           Text(tr('base_price'), style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w600)),
           const SizedBox(height: 8),

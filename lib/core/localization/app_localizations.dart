@@ -33,15 +33,16 @@ class AppLocalizations {
 
   /// Helper to get the correct TextStyle with proper font.
   TextStyle fontStyle({
-    double fontSize = 14,
+    dynamic fontSize = 14,
     FontWeight fontWeight = FontWeight.normal,
     Color color = const Color(0xFF1A1A1A),
     double? height,
     TextDecoration? decoration,
   }) {
+    final double fs = (fontSize is num) ? fontSize.toDouble() : 14.0;
     if (isUrdu) {
       return GoogleFonts.notoNastaliqUrdu(
-        fontSize: fontSize,
+        fontSize: fs,
         fontWeight: fontWeight,
         color: color,
         height: height ?? 2.0,
@@ -49,7 +50,7 @@ class AppLocalizations {
       );
     }
     return GoogleFonts.inter(
-      fontSize: fontSize,
+      fontSize: fs,
       fontWeight: fontWeight,
       color: color,
       height: height,
@@ -59,21 +60,22 @@ class AppLocalizations {
 
   /// Helper for heading/display font.
   TextStyle headingStyle({
-    double fontSize = 32,
+    dynamic fontSize = 32,
     FontWeight fontWeight = FontWeight.bold,
     Color color = const Color(0xFF1A1A1A),
     double? height,
   }) {
+    final double fs = (fontSize is num) ? fontSize.toDouble() : 32.0;
     if (isUrdu) {
       return GoogleFonts.notoNastaliqUrdu(
-        fontSize: fontSize * 0.75, // Nastaliq is naturally larger
+        fontSize: fs * 0.75, // Nastaliq is naturally larger
         fontWeight: fontWeight,
         color: color,
         height: height ?? 2.2,
       );
     }
     return GoogleFonts.playfairDisplay(
-      fontSize: fontSize,
+      fontSize: fs,
       fontWeight: fontWeight,
       color: color,
       height: height ?? 1.2,
@@ -140,6 +142,8 @@ class AppLocalizations {
     'lahore_sub': 'Largest wedding market in Pakistan',
     'karachi': '🌊 Karachi',
     'karachi_sub': 'Biggest city, most vendor categories',
+    'rawalpindi': '🏰 Rawalpindi',
+    'rawalpindi_sub': 'Historic city adjacent to Islamabad, active vendors',
 
     // Vendor Categories
     'step_3_of_4': 'Step 3 of 4',
@@ -207,6 +211,36 @@ class AppLocalizations {
     'download_pdf': 'Download PDF',
     'share_event_setup': 'Share Event Setup',
     'back_to_home': 'Back to Home',
+
+    // Home screen
+    'home_headline': 'Plan your perfect event with AI',
+    'home_subtitle': 'Our agents negotiate the best prices across all vendors.',
+    'plan_new_event': 'Plan New Event',
+    'how_it_works': 'How it works',
+    'feature_1_title': 'Set up your event',
+    'feature_1_sub': 'Tell us what type, date, city, and budget.',
+    'feature_2_title': 'AI agents negotiate',
+    'feature_2_sub': 'Our agents contact vendors and negotiate in real time.',
+    'feature_3_title': 'Save up to 30%',
+    'feature_3_sub': 'Deals are locked in — no hidden fees.',
+    'feature_4_title': 'Confirm your package',
+    'feature_4_sub': 'Review the best combination and book.',
+    'guest': 'Guest',
+
+    // Customer profile & history
+    'my_events': 'My Events',
+    'no_events_yet': 'No events yet',
+    'start_planning': 'Tap the button above to plan your first event.',
+    'total_events': 'Total',
+    'booked': 'Booked',
+    'in_progress': 'Active',
+    'total_savings_label': 'My Savings',
+    'sign_out': 'Sign Out',
+    'recent_events': 'Recent Events',
+    'see_all': 'See all',
+    'status': 'Status',
+    'ai_package': 'AI-Negotiated Package',
+    'view_full_package': 'View Full Package',
   };
 
   // ─── URDU STRINGS ───────────────────────────────────────────
@@ -269,6 +303,8 @@ class AppLocalizations {
     'lahore_sub': 'پاکستان کی سب سے بڑی شادی مارکیٹ',
     'karachi': '🌊 کراچی',
     'karachi_sub': 'سب سے بڑا شہر، سب سے زیادہ وینڈر زمرے',
+    'rawalpindi': '🏰 راولپنڈی',
+    'rawalpindi_sub': 'اسلام آباد کے قریب واقع تاریخی شہر، سرگرم وینڈرز',
 
     // Vendor Categories
     'step_3_of_4': 'مرحلہ 3 از 4',
@@ -336,6 +372,36 @@ class AppLocalizations {
     'download_pdf': 'پی ڈی ایف ڈاؤن لوڈ کریں',
     'share_event_setup': 'ایونٹ سیٹ اپ شیئر کریں',
     'back_to_home': 'ہوم پر واپس جائیں',
+
+    // Home screen
+    'home_headline': 'اے آئی کے ساتھ اپنا بہترین ایونٹ منصوبہ بنائیں',
+    'home_subtitle': 'ہمارے ایجنٹ تمام وینڈروں سے بہترین قیمتیں طے کرتے ہیں۔',
+    'plan_new_event': 'نیا ایونٹ منصوبہ بنائیں',
+    'how_it_works': 'یہ کیسے کام کرتا ہے',
+    'feature_1_title': 'اپنا ایونٹ ترتیب دیں',
+    'feature_1_sub': 'قسم، تاریخ، شہر اور بجٹ بتائیں۔',
+    'feature_2_title': 'اے آئی ایجنٹ بات چیت کرتے ہیں',
+    'feature_2_sub': 'ہمارے ایجنٹ وینڈروں سے براہ راست بات کرتے ہیں۔',
+    'feature_3_title': '30٪ تک بچت',
+    'feature_3_sub': 'معاہدے طے ہو جاتے ہیں — کوئی پوشیدہ فیس نہیں۔',
+    'feature_4_title': 'اپنا پیکج تصدیق کریں',
+    'feature_4_sub': 'بہترین مجموعہ دیکھیں اور بک کریں۔',
+    'guest': 'مہمان',
+
+    // Customer profile & history
+    'my_events': 'میرے ایونٹ',
+    'no_events_yet': 'ابھی تک کوئی ایونٹ نہیں',
+    'start_planning': 'اپنا پہلا ایونٹ منصوبہ بنانے کے لیے اوپر والا بٹن دبائیں۔',
+    'total_events': 'کل',
+    'booked': 'بک شدہ',
+    'in_progress': 'جاری',
+    'total_savings_label': 'میری بچت',
+    'sign_out': 'سائن آؤٹ',
+    'recent_events': 'حالیہ ایونٹ',
+    'see_all': 'سب دیکھیں',
+    'status': 'حیثیت',
+    'ai_package': 'اے آئی مذاکرہ شدہ پیکج',
+    'view_full_package': 'مکمل پیکج دیکھیں',
   };
 
   // ─── URDU SUBTITLES (for English/Roman Urdu mode) ───────────

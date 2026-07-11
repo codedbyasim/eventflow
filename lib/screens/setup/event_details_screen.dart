@@ -65,9 +65,10 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                 const SizedBox(height: 12),
                 Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
                 const SizedBox(height: 16),
-                _buildCityOption(loc.get('islamabad'), loc.get('islamabad_sub'), loc),
-                _buildCityOption(loc.get('lahore'), loc.get('lahore_sub'), loc),
-                _buildCityOption(loc.get('karachi'), loc.get('karachi_sub'), loc),
+                _buildCityOption('islamabad', loc.get('islamabad_sub'), loc),
+                _buildCityOption('lahore', loc.get('lahore_sub'), loc),
+                _buildCityOption('karachi', loc.get('karachi_sub'), loc),
+                _buildCityOption('rawalpindi', loc.get('rawalpindi_sub'), loc),
                 const SizedBox(height: 24),
               ],
             ),
@@ -77,15 +78,14 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
     );
   }
 
-  Widget _buildCityOption(String title, String subtitle, dynamic loc) {
+  Widget _buildCityOption(String cityKey, String subtitle, dynamic loc) {
+    final title = loc.get(cityKey);
     return ListTile(
       title: Text(title, style: loc.fontStyle(fontWeight: FontWeight.w600, color: const Color(0xFF1A1A1A), fontSize: 15.0)),
       subtitle: Text(subtitle, style: loc.fontStyle(fontSize: 13.0, color: const Color(0xFF666666))),
       onTap: () {
         setState(() {
-          // Extract city name (after emoji)
-          final parts = title.split(' ');
-          _selectedCity = parts.length > 1 ? parts.sublist(1).join(' ') : title;
+          _selectedCity = cityKey;
         });
         Navigator.pop(context);
       },
@@ -213,7 +213,7 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
                               const Icon(Icons.location_city_outlined, color: AppColors.goldenBrown, size: 20),
                               const SizedBox(width: 16),
                               Text(
-                                _selectedCity ?? loc.get('select_city'),
+                                _selectedCity != null ? loc.get(_selectedCity!) : loc.get('select_city'),
                                 style: loc.fontStyle(
                                   fontSize: 15,
                                   color: _selectedCity != null ? const Color(0xFF7A4E1E) : const Color(0xFFB08040),

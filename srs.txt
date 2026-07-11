@@ -1,0 +1,347 @@
+
+Software Requirements Specification
+EventFlow
+AI-Agent-Driven Event Planning & Vendor Negotiation Platform
+Document Version: 1.0
+Date: July 11, 2026
+Status: Draft for Development Planning
+Prepared based on repository: github.com/MalaikaAltaf/eventflow
+ Table of Contents
+Table of Contents	2
+1. Introduction	4
+1.1 Purpose	4
+1.2 Document Conventions	4
+1.3 Intended Audience	4
+1.4 Project Scope	4
+1.5 Definitions, Acronyms, Abbreviations	4
+1.6 References	5
+2. Overall Description	6
+2.1 Product Perspective	6
+2.2 Product Functions (Summary)	6
+2.3 User Classes and Characteristics	6
+2.4 Operating Environment	6
+2.5 Design and Implementation Constraints	7
+2.6 Assumptions and Dependencies	7
+3. System Features (Functional Requirements)	8
+3.1 Authentication & User Management	8
+3.2 Customer Event Setup	8
+3.3 AI Requirement Analysis (Analyzer Agent)	8
+3.4 Vendor Matching	9
+3.5 Parallel Vendor Negotiation (Negotiation Agents)	9
+3.6 Vendor Manual Negotiation Interface	9
+3.7 Aggregation & Best Combination	10
+3.8 Booking & Confirmation	10
+3.9 Customer Profile & Event History	10
+3.10 Vendor Profile & Booking History	11
+3.11 Notifications	11
+4. External Interface Requirements	12
+4.1 User Interfaces	12
+4.2 Hardware Interfaces	12
+4.3 Software Interfaces	12
+4.4 Communication Interfaces	12
+5. System Architecture Overview	13
+5.1 Components	13
+5.2 High-Level Data Flow	13
+6. Data Requirements	14
+6.1 PostgreSQL Schema (Transactional Store)	14
+6.2 Firestore Schema (Realtime Layer)	14
+6.3 Data Retention & Audit	14
+7. Non-Functional Requirements	15
+7.1 Performance	15
+7.2 Security	15
+7.3 Reliability & Availability	15
+7.4 Scalability	15
+7.5 Usability	16
+7.6 Maintainability	16
+7.7 Localization	16
+8. Other Requirements	17
+8.1 Legal & Compliance	17
+8.2 Future Scope (Not in v1.0)	17
+Appendix A: Agent Tool Schemas (Reference)	18
+Analyzer Agent — allocate_budget	18
+Negotiation Agent — send_offer / accept_vendor_price / walk_away	18
+Aggregator Agent — compile_package	18
+Appendix B: Use Case Summary	19
+
+ 1. Introduction
+1.1 Purpose
+This document specifies the software requirements for EventFlow, a mobile application that allows customers to plan events and automatically negotiate with vendors through AI agents, while giving vendors a manual interface to respond to those negotiations. This SRS defines the functional and non-functional requirements, system architecture, data model, and interface requirements needed to build a production-ready version of the system. It is intended to guide design, development, testing, and future maintenance of the platform.
+1.2 Document Conventions
+•	Functional requirements are labeled FR-<module>-<number> (e.g. FR-NEG-03).
+•	Non-functional requirements are labeled NFR-<category>-<number> (e.g. NFR-SEC-02).
+•	"Shall" indicates a mandatory requirement; "should" indicates a recommended but non-mandatory requirement.
+•	"Agent" refers to an LLM-driven autonomous process invoked through the Fireworks AI API.
+1.3 Intended Audience
+•	Development team (Flutter engineers, Python/backend engineers)
+•	QA / test engineers
+•	Project owner / product stakeholder
+•	Future maintainers of the system
+1.4 Project Scope
+EventFlow is a two-sided marketplace application connecting event customers with service vendors (catering, venue, decor, photography, etc.). The system's differentiator is that price negotiation with vendors is initiated and largely conducted by autonomous AI agents on the customer's behalf, running in parallel across multiple vendors, with vendors able to respond either automatically (their own agent, future scope) or manually through the app. The system covers:
+•	A customer-facing Flutter application for event creation, budget input, live negotiation tracking, and booking.
+•	A vendor-facing Flutter application for profile management, inbox, manual negotiation, and booking history.
+•	A Python backend that hosts the agent orchestration logic, vendor matching, and negotiation engine, integrated with the Fireworks AI inference API.
+•	A Firebase layer (Auth + Firestore) for realtime state sync between backend agents and both apps.
+•	A relational data store (PostgreSQL) for transactional, auditable records (bookings, payments, negotiation history).
+Out of scope for version 1.0: in-app payment processing (gateway integration is a stretch goal, see Section 8), a vendor-side AI agent (vendors respond manually in v1.0), and a public web version of the app.
+1.5 Definitions, Acronyms, Abbreviations
+Term	Definition
+Agent	An autonomous process that calls an LLM (via Fireworks AI) with a defined tool set to make decisions (e.g. send an offer).
+Analyzer Agent	Agent that parses event requirements and allocates the customer's budget across vendor categories.
+Negotiation Agent	Agent instance assigned to negotiate with one specific vendor on behalf of the customer.
+Aggregator Agent	Agent that reviews all closed/open negotiations and assembles the best overall vendor package.
+SRS	Software Requirements Specification
+FR / NFR	Functional Requirement / Non-Functional Requirement
+Firestore	Firebase's realtime NoSQL document database, used for live state sync.
+Negotiation Round	One offer-counteroffer exchange between an agent and a vendor.
+1.6 References
+•	EventFlow source repository: https://github.com/MalaikaAltaf/eventflow
+•	Fireworks AI API documentation: https://docs.fireworks.ai
+•	Firebase documentation: https://firebase.google.com/docs
+•	IEEE 830-1998 Recommended Practice for Software Requirements Specifications (structural reference)
+ 2. Overall Description
+2.1 Product Perspective
+EventFlow is a new, self-contained product composed of a Flutter client (existing partial implementation) and a new Python backend service (to be built). The current repository contains a Flutter UI skeleton with Firebase Firestore integration and a partially implemented vendor-side manual negotiation write path. It does not yet contain a backend service, any AI agent logic, or a customer profile/history module. This SRS specifies the complete system including the parts already scaffolded and the parts that must be newly built.
+2.2 Product Functions (Summary)
+•	Customer account creation and role-based sign-in (customer / vendor).
+•	Event creation wizard: type, date, guest count, indoor/outdoor, required vendor categories, total and per-vendor budget.
+•	Automatic requirement analysis and budget allocation across categories.
+•	Parallel AI-driven negotiation with all matched vendors per category.
+•	Live negotiation dashboard showing real-time agent-vendor conversation status.
+•	Vendor inbox and manual negotiation screen to accept, counter, or reject agent offers.
+•	Aggregated "best combination" package recommendation with budget comparison.
+•	Booking confirmation and history for both customer and vendor.
+•	Customer and vendor profile management.
+•	Notifications for negotiation updates, deals, and bookings.
+2.3 User Classes and Characteristics
+User Class	Description	Technical Expertise
+Customer	Individual planning an event (wedding, birthday, corporate, etc.) who wants vendors sourced and negotiated automatically.	Low — must be guided by simple wizard UI
+Vendor	Business offering a service category (catering, venue, decor, photography, etc.) who receives and responds to negotiation offers.	Low-medium — mobile app comfortable users
+Admin (future scope)	Internal staff who moderates vendor onboarding, monitors agent activity, and resolves disputes.	High
+2.4 Operating Environment
+•	Client: Flutter application targeting Android and iOS (existing repo also scaffolds web, Windows, macOS, Linux, but mobile is the primary target).
+•	Backend: Python 3.11+, containerized (Docker), deployed on a cloud container platform (e.g. Cloud Run).
+•	Database: Firebase Firestore (realtime layer) + PostgreSQL (transactional layer).
+•	AI Inference: Fireworks AI hosted models via OpenAI-compatible REST API (https://api.fireworks.ai/inference/v1).
+•	Queue/Cache: Redis, used with Celery (or Cloud Tasks) for background/parallel negotiation jobs.
+2.5 Design and Implementation Constraints
+•	Firebase Admin SDK must be used for all backend writes to Firestore to keep security rules enforceable.
+•	The Flutter client must never call the Fireworks AI API directly; all LLM calls are proxied through the Python backend to protect the API key and enforce business logic.
+•	State management on the client uses Riverpod (already adopted in the repo); navigation uses GoRouter (already adopted).
+•	The app must support English and Urdu localization (easy_localization is already integrated in the repo).
+•	All monetary values are handled in a single currency configured per deployment (default PKR).
+2.6 Assumptions and Dependencies
+•	Vendors are pre-onboarded (self-registration) with a listed base price per category before any negotiation can start.
+•	A Fireworks AI account and API key with sufficient rate limits/budget is available for the environment.
+•	Firebase project (Auth, Firestore, Storage) is provisioned per environment (dev/staging/prod).
+•	Vendors respond to offers within the app; SMS/WhatsApp fallback channels are out of scope for v1.0.
+ 3. System Features (Functional Requirements)
+3.1 Authentication & User Management
+Covers account creation, login, and role separation between customer and vendor.
+FR-AUTH-01  The system shall allow a new user to sign up using email/password or phone via Firebase Authentication.
+FR-AUTH-02  The system shall require the user to select a role (Customer or Vendor) at sign-up, stored on the user profile document.
+FR-AUTH-03  The system shall route authenticated users to the correct app experience (customer flow or vendor flow) based on stored role, and shall prevent a customer-role account from accessing vendor-only screens and vice versa.
+FR-AUTH-04  The system shall support returning-user sign-in with session persistence.
+FR-AUTH-05  The backend shall verify the Firebase ID token on every API request and reject requests with invalid or expired tokens.
+
+3.2 Customer Event Setup
+Covers the multi-step wizard through which a customer defines their event.
+FR-EVT-01  The system shall allow the customer to select an event type (e.g. Wedding, Birthday, Corporate, Other).
+FR-EVT-02  The system shall allow the customer to enter event date, city, and guest count.
+FR-EVT-03  The system shall allow the customer to specify venue preference as Indoor or Outdoor.
+FR-EVT-04  The system shall allow the customer to select one or more required vendor categories (catering, venue, decor, photography, etc.).
+FR-EVT-05  The system shall allow the customer to set a total event budget and, optionally, a maximum budget per vendor category.
+FR-EVT-06  The system shall present a review screen summarizing all entered details before submission.
+FR-EVT-07  On submission, the system shall create an event record and shall trigger the Analyzer Agent within 3 seconds.
+
+3.3 AI Requirement Analysis (Analyzer Agent)
+The first agent stage, responsible for turning raw event input into an actionable budget allocation.
+FR-ANL-01  The Analyzer Agent shall parse the event's type, guest count, indoor/outdoor preference, selected categories, and total budget.
+FR-ANL-02  The Analyzer Agent shall produce a per-category budget allocation that sums to no more than the customer's total budget.
+FR-ANL-03  The Analyzer Agent shall call the Fireworks AI chat completion API with a structured tool call (allocate_budget) and shall persist the returned allocation and reasoning to the event record.
+FR-ANL-04  If the customer specified a per-vendor maximum budget, the Analyzer Agent shall respect it as a hard ceiling and shall not allocate above it for that category.
+FR-ANL-05  The system shall update the event status to 'analyzing' while this stage runs and to 'matching' once allocation completes.
+
+3.4 Vendor Matching
+Selects candidate vendors per category before negotiation begins.
+FR-MTC-01  The system shall query available, verified vendors filtered by category, city, and availability on the event date.
+FR-MTC-02  The system shall rank matched vendors by a composite score (rating, proximity to allocated budget, availability).
+FR-MTC-03  The system shall select up to N vendors per category (configurable, default 3) to contact for negotiation.
+FR-MTC-04  If zero vendors are matched for a required category, the system shall notify the customer and shall not block negotiation for other categories.
+
+3.5 Parallel Vendor Negotiation (Negotiation Agents)
+The core differentiating feature: one AI negotiation agent instance per matched vendor, running concurrently.
+FR-NEG-01  The system shall spawn one independent Negotiation Agent task per matched vendor and shall execute all tasks for a given event concurrently.
+FR-NEG-02  Each Negotiation Agent shall be initialized with the vendor's listed price, the allocated category budget, the customer's maximum for that vendor, and a configurable maximum number of negotiation rounds (default 5).
+FR-NEG-03  The Negotiation Agent shall be able to invoke one of three actions per turn: send_offer, accept_vendor_price, or walk_away, each implemented as a Fireworks AI tool/function call.
+FR-NEG-04  Every agent action and every vendor response shall be persisted as a message document in the negotiation's message thread, with sender, content, offer amount, message type, and timestamp.
+FR-NEG-05  The system shall update the negotiation status in real time (connecting, negotiating, counter-offer, deal, no-deal, expired) so the customer's dashboard reflects live progress.
+FR-NEG-06  If a vendor does not respond within a configurable timeout, the system shall mark the negotiation as expired and shall exclude it from the final package.
+FR-NEG-07  If the maximum round count is reached without a deal, the Negotiation Agent shall invoke walk_away and shall report the reason to the aggregator stage.
+
+3.6 Vendor Manual Negotiation Interface
+Vendor-side screens for viewing and responding to agent-initiated offers (builds on the existing negotiation_service.dart logic).
+FR-VND-01  The system shall display all incoming negotiations for a vendor in an inbox, sorted by most recent activity.
+FR-VND-02  The vendor shall be able to accept the current offer, submit a counter-offer with an amount and note, or reject the negotiation.
+FR-VND-03  On any vendor action, the system shall write the corresponding message and status update, and shall notify the backend so the assigned Negotiation Agent can process the vendor's response and decide its next move.
+FR-VND-04  The vendor shall be able to view a read-only history of past negotiation threads regardless of outcome.
+FR-VND-05  The system shall prevent a vendor from acting on a negotiation that is not currently their turn (isVendorTurn flag).
+
+3.7 Aggregation & Best Combination
+Combines results of all category negotiations into one recommended package.
+FR-AGG-01  Once all negotiations for an event reach a terminal state (deal, no-deal, or expired) or a global timeout elapses, the Aggregator Agent shall run.
+FR-AGG-02  The Aggregator Agent shall compile the best deal per category and shall compute total package cost, total savings versus vendors' original asking prices, and savings percentage.
+FR-AGG-03  If the compiled total exceeds the customer's total budget, the Aggregator Agent shall flag the affected categories and shall suggest either re-negotiation or an alternate vendor.
+FR-AGG-04  The system shall present the final package to the customer with a per-vendor breakdown and an overall optimization summary.
+
+3.8 Booking & Confirmation
+FR-BK-01  The customer shall be able to accept the full recommended package or accept/reject individual vendors within it.
+FR-BK-02  On acceptance, the system shall create a booking record linking the event, vendor, and final negotiated price, and shall update the negotiation status to 'deal'.
+FR-BK-03  The system shall notify the corresponding vendor(s) immediately upon booking confirmation.
+FR-BK-04  The system shall display a booking success confirmation to the customer summarizing all confirmed vendors and total cost.
+
+3.9 Customer Profile & Event History
+Currently missing from the repository; must be added.
+FR-CPR-01  The system shall provide a customer profile screen showing name, contact details, and editable preferences.
+FR-CPR-02  The system shall provide an event history list showing all past and in-progress events with status and total spend.
+FR-CPR-03  The customer shall be able to open any past event to view its full vendor breakdown and negotiation outcomes.
+FR-CPR-04  The customer shall be able to start a new event pre-filled from a past event's details (re-book).
+
+3.10 Vendor Profile & Booking History
+Builds on the existing vendor_profile_screen.dart and vendor_bookings_screen.dart.
+FR-VPR-01  The system shall allow a vendor to manage business name, category, service area, price range, and portfolio images.
+FR-VPR-02  The system shall display a vendor's confirmed bookings, including date, customer event type, and final price.
+FR-VPR-03  The system shall display aggregate vendor statistics (total bookings, acceptance rate, average negotiated discount).
+
+3.11 Notifications
+FR-NTF-01  The system shall send a push notification to the customer when a vendor accepts, counters, or rejects an offer.
+FR-NTF-02  The system shall send a push notification to the vendor when a new agent-initiated offer arrives.
+FR-NTF-03  The system shall send a push notification to both parties when a booking is confirmed.
+
+ 4. External Interface Requirements
+4.1 User Interfaces
+•	Flutter Material 3 UI, consistent with the existing app theme (AppColors, Google Fonts already defined in the repo).
+•	Two distinct navigation flows gated by role: /customer/* and /vendor/* route trees (GoRouter, already partially defined in main.dart).
+•	Bilingual UI (English/Urdu) via easy_localization, including RTL layout support for Urdu.
+4.2 Hardware Interfaces
+None beyond standard smartphone hardware (camera/gallery access for vendor portfolio images, push notification support).
+4.3 Software Interfaces
+Interface	Purpose
+Firebase Authentication	User sign-up, sign-in, session/token management
+Cloud Firestore	Realtime negotiation state, messages, event status sync between backend and clients
+Firebase Cloud Storage	Vendor portfolio images, profile photos
+Firebase Cloud Functions / Backend Webhook	Triggers Python backend when a vendor writes a manual reply to Firestore
+Fireworks AI Inference API	OpenAI-compatible chat completion endpoint used by all three agent types for reasoning and tool calls
+PostgreSQL	Transactional storage for users, events, vendors, negotiations, bookings
+Redis / Celery	Background task queue for parallel per-vendor negotiation jobs
+Firebase Cloud Messaging	Push notifications to customer and vendor apps
+4.4 Communication Interfaces
+•	Client-to-backend: HTTPS REST (JSON) for event submission, status polling, and vendor-side actions requiring backend confirmation.
+•	Client-to-Firestore: direct SDK connection for realtime listeners (negotiation messages, event status).
+•	Backend-to-Fireworks AI: HTTPS REST, OpenAI-compatible chat completions endpoint (https://api.fireworks.ai/inference/v1), with streaming enabled for lower perceived latency.
+ 5. System Architecture Overview
+The system follows a layered, service-oriented architecture. The Flutter client handles presentation and realtime display; the Python backend owns all business logic and AI agent orchestration; Firestore acts as the realtime synchronization layer; PostgreSQL is the system of record for transactional data.
+5.1 Components
+•	Flutter Client (Customer + Vendor) — presentation layer, Firestore listeners, REST calls to backend.
+•	FastAPI Backend — API layer, authentication middleware, agent orchestrator, vendor matching service, negotiation engine.
+•	Agent Layer — Analyzer Agent, Negotiation Agent (parallel per vendor), Aggregator Agent, each calling Fireworks AI with a defined tool schema.
+•	Celery Workers + Redis — execute per-vendor negotiation tasks concurrently and reliably (with retries).
+•	Firestore — realtime negotiation/message/event status store, read directly by the client.
+•	PostgreSQL — durable transactional store for users, events, vendors, negotiations, bookings, and LLM usage/audit logs.
+•	Firebase Cloud Storage — vendor images and documents.
+5.2 High-Level Data Flow
+•	1. Customer submits event → backend creates event record (Postgres) and mirrors status to Firestore.
+•	2. Analyzer Agent runs → produces budget allocation.
+•	3. Vendor Matching Service selects candidate vendors per category.
+•	4. Orchestrator spawns parallel Negotiation Agent tasks (one per vendor) via Celery.
+•	5. Each agent negotiates in rounds, writing every message to Firestore; the customer's live dashboard listens and updates in real time.
+•	6. A vendor's manual reply in the app triggers a webhook/Firestore-listener back to the backend, which re-invokes that vendor's Negotiation Agent with the updated context.
+•	7. When all negotiations reach a terminal state, the Aggregator Agent compiles the best package.
+•	8. Customer confirms → booking(s) written to Postgres and mirrored to Firestore → notifications sent.
+ 6. Data Requirements
+6.1 PostgreSQL Schema (Transactional Store)
+Table	Key Fields
+users	id, role (customer/vendor), email, phone, created_at
+events	id, customer_id, type, date, city, guest_count, indoor_outdoor, total_budget, status, created_at
+event_vendor_allocations	id, event_id, category, allocated_amount
+vendors	id, category, business_name, city, base_price_range, rating, verified, created_at
+negotiations	id, event_id, vendor_id, status, asking_price, final_price, rounds_used, created_at, closed_at
+bookings	id, event_id, vendor_id, negotiation_id, amount, payment_status, confirmed_at
+llm_usage_log	id, agent_type, event_id, tokens_in, tokens_out, cost, created_at
+6.2 Firestore Schema (Realtime Layer)
+•	events/{eventId} — status, mirrored summary fields for live UI.
+•	negotiations/{negotiationId} — status, currentOffer, isVendorTurn, offerCount, maxOffers.
+•	negotiations/{negotiationId}/messages/{messageId} — sender (agent/vendor/system), content, offerAmount, messageType, timestamp.
+•	users/{uid} — role, profile display fields.
+6.3 Data Retention & Audit
+FR-DAT-01  The system shall retain full negotiation message history for at least 24 months for dispute resolution.
+FR-DAT-02  The system shall log every LLM API call (agent type, tokens, cost, timestamp) for cost auditing.
+ 7. Non-Functional Requirements
+7.1 Performance
+NFR-PERF-01  The Analyzer Agent shall return a budget allocation within 5 seconds for a typical event (up to 6 vendor categories).
+NFR-PERF-02  Negotiation Agent tasks for all matched vendors of an event shall run concurrently, not sequentially, so total negotiation wall-clock time is bounded by the slowest single vendor negotiation, not the sum of all.
+NFR-PERF-03  Firestore-driven UI updates on the customer's live dashboard shall reflect a new agent/vendor message within 2 seconds of it being written.
+
+7.2 Security
+NFR-SEC-01  All API traffic shall use HTTPS/TLS.
+NFR-SEC-02  The Fireworks AI API key and Firebase service account credentials shall be stored only in backend secret management (e.g. environment variables or a secrets manager) and never shipped in the client binary.
+NFR-SEC-03  The backend shall verify Firebase ID tokens on every request and enforce role-based authorization (customer vs vendor endpoints).
+NFR-SEC-04  Firestore security rules shall restrict a user to reading/writing only documents belonging to their own account or negotiations they are a party to.
+NFR-SEC-05  The system shall rate-limit event creation and negotiation-triggering endpoints per user to prevent abuse of paid LLM inference calls.
+
+7.3 Reliability & Availability
+NFR-REL-01  If the Fireworks AI API is unavailable or times out during a negotiation round, the system shall retry with backoff and, after exhausting retries, shall mark that vendor's negotiation as needing manual customer attention rather than failing the whole event.
+NFR-REL-02  Negotiation Agent tasks shall be idempotent per round so retries do not send duplicate offers to a vendor.
+NFR-REL-03  The core booking/negotiation service shall target 99.5% monthly uptime.
+
+7.4 Scalability
+NFR-SCL-01  The negotiation task queue shall support horizontal scaling of worker instances to handle concurrent negotiations across many simultaneous events.
+NFR-SCL-02  The system shall support at least 500 concurrent active negotiations without degradation in message latency, in the target production configuration.
+
+7.5 Usability
+NFR-USE-01  The event setup wizard shall be completable by a first-time user in under 5 steps/screens, consistent with the existing setup flow in the repository.
+NFR-USE-02  The live negotiation dashboard shall clearly distinguish agent-authored messages from vendor-authored messages.
+
+7.6 Maintainability
+NFR-MNT-01  Agent prompts and tool schemas shall be defined as versioned configuration, separate from orchestration code, so prompts can be iterated without redeploying the whole backend.
+NFR-MNT-02  The backend shall expose structured logs and per-agent tracing so a specific negotiation's decision path can be replayed for debugging.
+
+7.7 Localization
+NFR-LOC-01  All customer- and vendor-facing UI text shall be available in English and Urdu, consistent with the existing easy_localization setup.
+NFR-LOC-02  Urdu locale screens shall render with correct RTL layout.
+
+ 8. Other Requirements
+8.1 Legal & Compliance
+•	Customer and vendor personal data shall be handled per applicable data protection requirements in the deployment region.
+•	Vendors shall explicitly agree to terms allowing an AI agent to negotiate on the customer's behalf within a bounded price range before they are listed as matchable.
+8.2 Future Scope (Not in v1.0)
+•	In-app payment gateway integration and escrow for booking deposits.
+•	A vendor-side AI agent for fully automated (non-manual) responses.
+•	Admin/moderation dashboard for vendor verification and dispute handling.
+•	Multi-currency support.
+ Appendix A: Agent Tool Schemas (Reference)
+These reflect the Fireworks AI function-calling tool definitions used by each agent, as agreed in system design.
+Analyzer Agent — allocate_budget
+•	Input context: event type, guest count, indoor/outdoor, categories, total budget.
+•	Output: allocations (category → amount), reasoning (string).
+Negotiation Agent — send_offer / accept_vendor_price / walk_away
+•	send_offer(amount, message) — proposes a price to the vendor.
+•	accept_vendor_price(amount) — accepts the vendor's current asking price.
+•	walk_away(reason) — ends the negotiation without a deal.
+Aggregator Agent — compile_package
+•	Input: all closed/expired negotiations for an event.
+•	Output: best per-category vendor, total cost, total savings, savings percentage, budget-exceeded flags.
+ Appendix B: Use Case Summary
+ID	Use Case	Primary Actor
+UC-01	Create account and select role	Customer / Vendor
+UC-02	Set up a new event	Customer
+UC-03	System analyzes event and allocates budget	Analyzer Agent
+UC-04	System matches vendors per category	System
+UC-05	Agent negotiates with a vendor	Negotiation Agent
+UC-06	Vendor responds manually to an offer	Vendor
+UC-07	View live negotiation dashboard	Customer
+UC-08	Review best combination package	Customer
+UC-09	Confirm booking	Customer
+UC-10	View event/booking history	Customer / Vendor
+UC-11	Manage profile	Customer / Vendor
+

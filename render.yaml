@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: eventflow-backend
+    env: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:create_app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false # Set database pooler url on Render (e.g. Supabase connection string)
+      - key: DIRECT_DATABASE_URL
+        sync: false # Set direct database url on Render (needed for migration running)
+      - key: FIREWORKS_API_KEY
+        sync: false # Set your Fireworks AI developer API key
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false # Set the Base64-encoded string of your firebase-service-account.json

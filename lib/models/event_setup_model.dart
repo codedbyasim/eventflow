@@ -9,6 +9,7 @@ class EventSetupModel {
 
   List<String> selectedVendors;
   int totalBudget;
+  double negotiationFlexibility;
 
   EventSetupModel({
     this.eventType,
@@ -19,6 +20,7 @@ class EventSetupModel {
     this.venuePreference = 'Indoor',
     this.selectedVendors = const [],
     this.totalBudget = 0,
+    this.negotiationFlexibility = 0.15,
   });
 
   EventSetupModel copyWith({
@@ -30,6 +32,7 @@ class EventSetupModel {
     String? venuePreference,
     List<String>? selectedVendors,
     int? totalBudget,
+    double? negotiationFlexibility,
   }) {
     return EventSetupModel(
       eventType: eventType ?? this.eventType,
@@ -40,6 +43,7 @@ class EventSetupModel {
       venuePreference: venuePreference ?? this.venuePreference,
       selectedVendors: selectedVendors ?? this.selectedVendors,
       totalBudget: totalBudget ?? this.totalBudget,
+      negotiationFlexibility: negotiationFlexibility ?? this.negotiationFlexibility,
     );
   }
 }

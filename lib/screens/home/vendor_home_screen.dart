@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/backend_service.dart';
 import '../profile/vendor_profile_screen.dart';
 import '../inbox/vendor_inbox_screen.dart';
 import '../bookings/vendor_bookings_screen.dart';
@@ -41,6 +42,43 @@ class VendorHomeScreen extends StatefulWidget {
 
 class _VendorHomeScreenState extends State<VendorHomeScreen> {
   int _currentIndex = 0;
+  bool _isSynced = false;
+
+  void _syncVendorToBackend(Map<String, dynamic> profile) async {
+    try {
+      final basePrice = (profile['basePrice'] ?? 0.0).toDouble();
+      final minPrice = (profile['minPrice'] ?? 0.0).toDouble();
+      final category = profile['category'] as String?;
+      final city = profile['city'] as String?;
+      final businessName = profile['businessName'] as String?;
+
+      if (category == null || city == null || businessName == null) return;
+
+      String pgCategory = 'Caterer';
+      switch (category) {
+        case 'caterer': pgCategory = 'Caterer'; break;
+        case 'decorator': pgCategory = 'Decorator'; break;
+        case 'photographer': pgCategory = 'Photographer'; break;
+        case 'dj_sound': pgCategory = 'DJ / Music'; break;
+        case 'tent': pgCategory = 'Tent / Marquee'; break;
+        case 'flowers': pgCategory = 'Flowers'; break;
+      }
+
+      await BackendService.instance.post(
+        '/users/onboard-vendor',
+        body: {
+          'business_name': businessName,
+          'category': pgCategory,
+          'city': city.toLowerCase(),
+          'base_price': basePrice,
+          'min_price': minPrice,
+        },
+      );
+      debugPrint('Self-healing vendor sync succeeded.');
+    } catch (e) {
+      debugPrint('Self-healing vendor sync error: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +95,13 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
         final userData = userSnapshot.data?.data() as Map<String, dynamic>?;
         final vendorProfile = userData?['vendorProfile'] as Map<String, dynamic>?;
 
+        if (vendorProfile != null && !_isSynced) {
+          _isSynced = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _syncVendorToBackend(vendorProfile);
+          });
+        }
+
         final businessName = vendorProfile?['businessName'] as String? ?? '';
         final category = vendorProfile?['category'] as String? ?? '';
         final totalBookings = vendorProfile?['totalBookings'] as int? ?? 0;
@@ -65,7 +110,7 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('negotiations')
-              .where('vendorId', isEqualTo: user.uid)
+              .where('vendorFirebaseUid', isEqualTo: user.uid)
               .snapshots(),
           builder: (context, negSnapshot) {
             int pendingCount = 0;
@@ -85,24 +130,28 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
                 final status = data['status'] as String? ?? '';
                 final isVendorTurn = data['isVendorTurn'] as bool? ?? false;
                 
-                if (status == 'pending') pendingCount++;
-                if (status == 'active') {
-                  activeCount++;
-                  activeNegotiations.add(data);
-                }
-                if (isVendorTurn) myTurnCount++;
-
-                if (status == 'deal') {
-                  final dealTimestamp = data['dealDate'] as Timestamp?;
-                  if (dealTimestamp != null) {
-                    final dealDate = dealTimestamp.toDate();
-                    if (dealDate.year == today.year && 
-                        dealDate.month == today.month && 
-                        dealDate.day == today.day) {
-                      todayEarnings += (data['finalPrice'] ?? 0.0).toDouble();
+                if (['deal', 'no_deal', 'expired'].contains(status)) {
+                  if (status == 'deal') {
+                    final dealTimestamp = data['dealDate'] as Timestamp?;
+                    if (dealTimestamp != null) {
+                      final dealDate = dealTimestamp.toDate();
+                      if (dealDate.year == today.year && 
+                          dealDate.month == today.month && 
+                          dealDate.day == today.day) {
+                        todayEarnings += (data['finalPrice'] ?? 0.0).toDouble();
+                      }
                     }
                   }
+                } else {
+                  // Ongoing (connecting or negotiating)
+                  if (isVendorTurn) {
+                    pendingCount++;
+                  } else {
+                    activeCount++;
+                    activeNegotiations.add(data);
+                  }
                 }
+                if (isVendorTurn) myTurnCount++;
               }
               
               // Sort active negotiations by lastActivity descending
@@ -125,7 +174,7 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
               recentNegotiations: activeNegotiations,
             );
 
-            final badgeCount = pendingCount + myTurnCount;
+            final badgeCount = pendingCount;
 
             final List<Widget> screens = [
               VendorDashboardView(

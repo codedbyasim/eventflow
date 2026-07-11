@@ -3,7 +3,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import '../../core/theme/app_colors.dart';
 import 'package:go_router/go_router.dart';
 
@@ -58,10 +59,12 @@ class BestCombinationScreen extends StatefulWidget {
   final String city;
   final int guestCount;
 
-  // Added mock params to easily receive data from previous screens if needed, 
-  // defaulting to some values if navigated directly.
+  // eventFirestoreId: real Firestore event doc ID from backend
+  final String eventFirestoreId;
+
   const BestCombinationScreen({
-    super.key, 
+    super.key,
+    required this.eventFirestoreId,
     this.eventBudget = 500000,
     this.eventType = 'Wedding',
     this.eventDate = '12 Dec 2026',
@@ -90,7 +93,7 @@ class _BestCombinationScreenState extends State<BestCombinationScreen> with Tick
   @override
   void initState() {
     super.initState();
-    _packageStream = _mockPackageStream();
+    _packageStream = _firestorePackageStream();
     
     _shakeController = AnimationController(
       vsync: this,
@@ -108,24 +111,49 @@ class _BestCombinationScreenState extends State<BestCombinationScreen> with Tick
     super.dispose();
   }
 
-  Stream<VendorPackage> _mockPackageStream() async* {
-    await Future.delayed(const Duration(seconds: 1, milliseconds: 500)); // Simulate load
-    
-    final vendors = [
-      PackageVendor(vendorId: 'v1', vendorName: 'Nadeem Caterers', category: 'Caterer', askingPrice: 200000, negotiatedPrice: 180000, savings: 20000, confirmationStatus: 'pending', vendorContact: '03001234567'),
-      PackageVendor(vendorId: 'v2', vendorName: 'Al-Faisal Decor', category: 'Decorator', askingPrice: 120000, negotiatedPrice: 100000, savings: 20000, confirmationStatus: 'pending', vendorContact: '03001234568'),
-      PackageVendor(vendorId: 'v3', vendorName: 'Raza Photography', category: 'Photographer', askingPrice: 80000, negotiatedPrice: 65000, savings: 15000, confirmationStatus: 'pending', vendorContact: '03001234569'),
-    ];
-    
-    yield VendorPackage(
-      packageId: 'pkg_${DateTime.now().millisecondsSinceEpoch}',
-      totalCost: 345000,
-      totalAsking: 400000,
-      totalSavings: 55000,
-      savingsPercent: (55000 / 400000) * 100,
-      vendors: vendors,
-      optimizationReason: 'Selected based on best price within budget with confirmed availability.',
-    );
+  /// Real Firestore stream — listens to events/{eventFirestoreId} and waits
+  /// for the 'package' field to be written by the Aggregator Agent.
+  /// FR-AGG-04, NFR-PERF-03: package appears in under 2s of agent writing it.
+  Stream<VendorPackage> _firestorePackageStream() async* {
+    final snapshots = FirebaseFirestore.instance
+        .collection('events')
+        .doc(widget.eventFirestoreId)
+        .snapshots();
+
+    await for (final snap in snapshots) {
+      final data = snap.data();
+      if (data == null) continue;
+      final pkg = data['package'] as Map<String, dynamic>?;
+      if (pkg == null) continue; // aggregator hasn't finished yet
+
+      final bestVendors = pkg['best_vendors'] as Map<String, dynamic>? ?? {};
+      final vendors = bestVendors.entries.map((entry) {
+        final v = entry.value as Map<String, dynamic>;
+        final askingNum = (v['asking_price'] as num?)?.toDouble() ?? 0;
+        final finalNum = (v['final_price'] as num?)?.toDouble() ?? askingNum;
+        return PackageVendor(
+          vendorId: v['vendor_id'] as String? ?? '',
+          vendorName: v['business_name'] as String? ?? entry.key,
+          category: entry.key,
+          askingPrice: askingNum,
+          negotiatedPrice: finalNum,
+          savings: askingNum - finalNum,
+          confirmationStatus: 'pending',
+          vendorContact: '',
+        );
+      }).toList();
+
+      yield VendorPackage(
+        packageId: widget.eventFirestoreId,
+        totalCost: (pkg['total_cost'] as num?)?.toDouble() ?? 0,
+        totalAsking: vendors.fold(0.0, (s, v) => s + v.askingPrice),
+        totalSavings: (pkg['total_savings'] as num?)?.toDouble() ?? 0,
+        savingsPercent: (pkg['savings_percentage'] as num?)?.toDouble() ?? 0,
+        vendors: vendors,
+        optimizationReason: pkg['summary'] as String? ?? 'Best combination selected by AI.',
+      );
+      break; // package is stable once written
+    }
   }
 
   void _onPackageLoaded(VendorPackage package) {
@@ -578,7 +606,7 @@ class _BestCombinationScreenState extends State<BestCombinationScreen> with Tick
                     ElevatedButton(
                       onPressed: () {
                         setState(() {
-                          _packageStream = _mockPackageStream();
+                          _packageStream = _firestorePackageStream();
                         });
                       },
                       child: const Text("Retry"),

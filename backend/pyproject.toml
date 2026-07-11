@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "eventflow-backend"
+version = "1.0.0"
+description = "EventFlow AI-Agent-Driven Event Planning Backend"
+requires-python = ">=3.11"
+dependencies = [
+    # Web framework
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+
+    # Database
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+
+    # Firebase Admin
+    "firebase-admin>=6.6.0",
+
+    # HTTP client (for Fireworks AI calls)
+    "httpx>=0.28.0",
+
+    # Configuration / validation
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    "python-dotenv>=1.0.0",
+
+    # Rate limiting
+    "slowapi>=0.1.9",
+
+    # Background task scheduling (reconciliation job)
+    "apscheduler>=3.10.4",
+
+    # Utilities
+    "python-multipart>=0.0.20",
+    "tenacity>=9.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-mock>=3.14.0",
+    "httpx>=0.28.0",  # for TestClient
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

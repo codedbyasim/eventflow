@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import 'vendor_home_screen.dart'; // To get DashboardData
+import '../../widgets/app_logo.dart';
 
 class VendorDashboardView extends StatefulWidget {
   final DashboardData data;
@@ -44,27 +45,35 @@ class _VendorDashboardViewState extends State<VendorDashboardView> with SingleTi
   }
 
   Widget _buildGreeting() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          tr('greeting', args: [widget.data.businessName]),
-          style: GoogleFonts.playfairDisplay(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                tr('greeting', args: [widget.data.businessName]),
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 4),
+              if (widget.data.category.isNotEmpty)
+                Text(
+                  tr(widget.data.category),
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    color: AppColors.goldenBrown,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
           ),
         ),
-        const SizedBox(height: 4),
-        if (widget.data.category.isNotEmpty)
-          Text(
-            tr(widget.data.category),
-            style: GoogleFonts.inter(
-              fontSize: 16,
-              color: AppColors.goldenBrown,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+        const AppLogo(size: 48),
       ],
     );
   }

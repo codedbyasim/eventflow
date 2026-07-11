@@ -65,7 +65,7 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/customer/home',
-      builder: (context, state) => const EventTypeScreen(),
+      builder: (context, state) => const HomeScreen(),
     ),
     GoRoute(
       path: '/vendor/home',

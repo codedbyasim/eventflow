@@ -75,7 +75,7 @@ final Set<String> _alreadyMarked = {};
 final vendorNegotiationsProvider = StreamProvider.family<VendorNegotiationsData, String>((ref, uid) {
   final query = FirebaseFirestore.instance
       .collection('negotiations')
-      .where('vendorId', isEqualTo: uid);
+      .where('vendorFirebaseUid', isEqualTo: uid);
 
   return query.snapshots().map((snapshot) {
     final pendingList = <NegotiationSummary>[];
@@ -94,12 +94,15 @@ final vendorNegotiationsProvider = StreamProvider.family<VendorNegotiationsData,
         }
         closedList.add(item);
       } else {
-        if (item.status == 'pending') {
-          pendingList.add(item);
-        } else if (item.status == 'active') {
-          activeList.add(item);
-        } else if (['deal', 'no_deal', 'expired'].contains(item.status)) {
+        if (['deal', 'no_deal', 'expired'].contains(item.status)) {
           closedList.add(item);
+        } else {
+          // Ongoing negotiation (connecting or negotiating)
+          if (item.isMyTurn) {
+            pendingList.add(item); // Vendor's action required (New request)
+          } else {
+            activeList.add(item);  // AI agent is responding (Active request)
+          }
         }
       }
     }
