@@ -22,12 +22,16 @@ class VendorNegotiationDetailScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<VendorNegotiationDetailScreen> createState() => _VendorNegotiationDetailScreenState();
+  ConsumerState<VendorNegotiationDetailScreen> createState() =>
+      _VendorNegotiationDetailScreenState();
 }
 
-class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiationDetailScreen> with TickerProviderStateMixin {
+class _VendorNegotiationDetailScreenState
+    extends ConsumerState<VendorNegotiationDetailScreen>
+    with TickerProviderStateMixin {
   final ScrollController _scrollController = ScrollController();
-  final TextEditingController _counterAmountController = TextEditingController();
+  final TextEditingController _counterAmountController =
+      TextEditingController();
   final TextEditingController _counterNoteController = TextEditingController();
 
   bool _isSubmitting = false;
@@ -57,7 +61,10 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
   Future<void> _fetchMinPrice() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
       final data = doc.data();
       if (data != null && data['vendorProfile'] != null) {
         setState(() {
@@ -80,14 +87,18 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
   void _scrollToBottom() {
     if (_scrollController.hasClients) {
       _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent + 200, // pad to guarantee bottom
+        _scrollController.position.maxScrollExtent +
+            200, // pad to guarantee bottom
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeOut,
       );
     }
   }
 
-  Future<void> _submitCounterOffer(NegotiationDetail detail, String amountText) async {
+  Future<void> _submitCounterOffer(
+    NegotiationDetail detail,
+    String amountText,
+  ) async {
     final amount = double.tryParse(amountText);
     if (amount == null) return;
 
@@ -99,21 +110,27 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
     if (amount < floorPrice) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Counter offer cannot be less than your floor price of PKR ${floorPrice.toStringAsFixed(0)}"))
+          SnackBar(
+            content: Text(
+              "Counter offer cannot be less than your floor price of PKR ${floorPrice.toStringAsFixed(0)}",
+            ),
+          ),
         );
       }
       return;
     }
 
     setState(() => _isSubmitting = true);
-    
+
     try {
-      await ref.read(negotiationServiceProvider).submitCounterOffer(
-        widget.negotiationId,
-        amount,
-        _counterNoteController.text.trim(),
-        firestoreNegotiationId: widget.negotiationId,
-      );
+      await ref
+          .read(negotiationServiceProvider)
+          .submitCounterOffer(
+            widget.negotiationId,
+            amount,
+            _counterNoteController.text.trim(),
+            firestoreNegotiationId: widget.negotiationId,
+          );
       setState(() {
         _showCounterSheet = false;
       });
@@ -122,8 +139,12 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
       // Auto triggers cloud function to agent on DB change
     } catch (e) {
       if (mounted) {
-        final errorMsg = e is BackendException ? e.message : tr('error_try_again');
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorMsg)));
+        final errorMsg = e is BackendException
+            ? e.message
+            : tr('error_try_again');
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(errorMsg)));
       }
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -133,15 +154,29 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
   void _showRejectConfirmSheet() {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) => Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(tr('confirm_reject'), style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.bold)),
+            Text(
+              tr('confirm_reject'),
+              style: GoogleFonts.playfairDisplay(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 8),
-            Text(tr('reject_warning'), style: GoogleFonts.inter(fontSize: 15, color: Colors.grey.shade600)),
+            Text(
+              tr('reject_warning'),
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                color: Colors.grey.shade600,
+              ),
+            ),
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
@@ -149,11 +184,20 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.goldenBrown,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   elevation: 0,
                 ),
                 onPressed: () => Navigator.pop(context),
-                child: Text(tr('go_back'), style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                child: Text(
+                  tr('go_back'),
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 12),
@@ -163,24 +207,37 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: Colors.grey.shade400),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () async {
                   Navigator.pop(context);
                   setState(() => _isSubmitting = true);
                   try {
-                    await ref.read(negotiationServiceProvider).rejectNegotiation(
-                      widget.negotiationId,
-                      firestoreNegotiationId: widget.negotiationId,
-                    );
+                    await ref
+                        .read(negotiationServiceProvider)
+                        .rejectNegotiation(
+                          widget.negotiationId,
+                          firestoreNegotiationId: widget.negotiationId,
+                        );
                     if (mounted) context.pop();
                   } catch (e) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('error_try_again'))));
+                    if (mounted)
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(tr('error_try_again'))),
+                      );
                   } finally {
                     if (mounted) setState(() => _isSubmitting = false);
                   }
                 },
-                child: Text(tr('yes_reject'), style: GoogleFonts.inter(fontSize: 16, color: Colors.grey.shade600)),
+                child: Text(
+                  tr('yes_reject'),
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -193,16 +250,24 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
   void _showAcceptConfirmSheet(NegotiationDetail detail) {
     showModalBottomSheet(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (context) => Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              tr('confirm_accept', args: [detail.currentOffer.toStringAsFixed(0)]),
+              tr(
+                'confirm_accept',
+                args: [detail.currentOffer.toStringAsFixed(0)],
+              ),
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 20, fontWeight: FontWeight.bold),
+              style: GoogleFonts.inter(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 24),
             Row(
@@ -211,10 +276,15 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                   child: OutlinedButton(
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                     onPressed: () => Navigator.pop(context),
-                    child: Text(tr('back'), style: GoogleFonts.inter(fontSize: 16)),
+                    child: Text(
+                      tr('back'),
+                      style: GoogleFonts.inter(fontSize: 16),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -223,32 +293,46 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       backgroundColor: AppColors.mossGreen,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       elevation: 0,
                     ),
                     onPressed: () async {
                       Navigator.pop(context);
                       setState(() => _isSubmitting = true);
                       try {
-                        await ref.read(negotiationServiceProvider).acceptOffer(
-                          widget.negotiationId,
-                          detail.eventId,
-                          detail.vendorId,
-                          detail.currentOffer,
-                          firestoreNegotiationId: widget.negotiationId,
-                        );
+                        await ref
+                            .read(negotiationServiceProvider)
+                            .acceptOffer(
+                              widget.negotiationId,
+                              detail.eventId,
+                              detail.vendorId,
+                              detail.currentOffer,
+                              firestoreNegotiationId: widget.negotiationId,
+                            );
                         if (mounted) {
                           Future.delayed(const Duration(seconds: 2), () {
                             if (mounted) context.pop();
                           });
                         }
                       } catch (e) {
-                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('error_try_again'))));
+                        if (mounted)
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(tr('error_try_again'))),
+                          );
                       } finally {
                         if (mounted) setState(() => _isSubmitting = false);
                       }
                     },
-                    child: Text(tr('yes_accept'), style: GoogleFonts.inter(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      tr('yes_accept'),
+                      style: GoogleFonts.inter(
+                        fontSize: 16,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -262,13 +346,19 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
 
   Widget _buildHeader(NegotiationDetail detail) {
     final dateStr = DateFormat('dd MMM yyyy').format(detail.eventDate);
-    
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,7 +368,10 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
             children: [
               Text(
                 tr(detail.eventType),
-                style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.bold),
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -287,55 +380,110 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
             children: [
               Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade600),
               const SizedBox(width: 4),
-              Text('${tr('date')}: $dateStr', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade700)),
+              Text(
+                '${tr('date')}: $dateStr',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                ),
+              ),
               const SizedBox(width: 16),
               Icon(Icons.location_on, size: 14, color: Colors.grey.shade600),
               const SizedBox(width: 4),
-              Text('${tr('city')}: ${tr(detail.city)}', style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade700)),
+              Text(
+                '${tr('city')}: ${tr(detail.city)}',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                ),
+              ),
               const SizedBox(width: 16),
               Icon(Icons.people, size: 14, color: Colors.grey.shade600),
               const SizedBox(width: 4),
-              Text(tr('guests', args: [detail.guestCount.toString()]), style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade700)),
+              Text(
+                tr('guests', args: [detail.guestCount.toString()]),
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: Colors.grey.shade700,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 12),
           GestureDetector(
-            onTap: () => setState(() => _expandedRequirement = !_expandedRequirement),
+            onTap: () =>
+                setState(() => _expandedRequirement = !_expandedRequirement),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('${tr('requirement')}:', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                Text(
+                  '${tr('requirement')}:',
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade700,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(
                   detail.requirement,
                   maxLines: _expandedRequirement ? null : 2,
-                  overflow: _expandedRequirement ? TextOverflow.visible : TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade600),
+                  overflow: _expandedRequirement
+                      ? TextOverflow.visible
+                      : TextOverflow.ellipsis,
+                  style: GoogleFonts.inter(
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
+                  ),
                 ),
               ],
             ),
-          )
+          ),
         ],
       ),
     );
   }
 
+  String _effectiveStatus(
+    NegotiationDetail detail,
+    List<NegotiationMessage> messages,
+  ) {
+    if (messages.any((message) => message.messageType == 'accept')) {
+      return 'deal';
+    }
+    if (messages.any((message) => message.messageType == 'reject')) {
+      return 'no_deal';
+    }
+    return detail.status;
+  }
+
   Widget _buildConversationLog(NegotiationDetail detail) {
-    final messagesAsync = ref.watch(negotiationMessagesProvider(widget.negotiationId));
+    final messagesAsync = ref.watch(
+      negotiationMessagesProvider(widget.negotiationId),
+    );
 
     return messagesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, s) => Center(child: Text('Error loading messages: $e')),
       data: (messages) {
+        final effectiveStatus = _effectiveStatus(detail, messages);
         WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
 
         return ListView.builder(
           controller: _scrollController,
-          padding: const EdgeInsets.only(top: 16, bottom: 80, left: 16, right: 16),
+          padding: const EdgeInsets.only(
+            top: 16,
+            bottom: 80,
+            left: 16,
+            right: 16,
+          ),
           itemCount: messages.length + 1, // +1 for typing indicator
           itemBuilder: (context, index) {
             if (index == messages.length) {
-              if (!detail.isVendorTurn && detail.status == 'active') {
+              if (!detail.isVendorTurn &&
+                  effectiveStatus != 'deal' &&
+                  effectiveStatus != 'no_deal' &&
+                  effectiveStatus != 'expired') {
                 return _buildAgentTypingIndicator();
               }
               return const SizedBox.shrink();
@@ -345,7 +493,10 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
             final isAgent = msg.sender == 'agent';
 
             if (msg.messageType == 'accept') {
-              return _buildDealBanner(msg, detail.finalPrice);
+              return _buildDealBanner(
+                msg,
+                detail.finalPrice ?? msg.offerAmount,
+              );
             }
             if (msg.messageType == 'reject') {
               return _buildRejectBanner();
@@ -354,13 +505,19 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
             return Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: Column(
-                crossAxisAlignment: isAgent ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+                crossAxisAlignment: isAgent
+                    ? CrossAxisAlignment.start
+                    : CrossAxisAlignment.end,
                 children: [
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (isAgent) ...[
-                        const Icon(Icons.auto_awesome, size: 12, color: AppColors.goldenBrown),
+                        const Icon(
+                          Icons.auto_awesome,
+                          size: 12,
+                          color: AppColors.goldenBrown,
+                        ),
                         const SizedBox(width: 4),
                       ],
                       Text(
@@ -368,7 +525,9 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                         style: GoogleFonts.inter(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: isAgent ? AppColors.goldenBrown : AppColors.mossGreen,
+                          color: isAgent
+                              ? AppColors.goldenBrown
+                              : AppColors.mossGreen,
                         ),
                       ),
                     ],
@@ -388,10 +547,16 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(16),
                         topRight: const Radius.circular(16),
-                        bottomLeft: isAgent ? const Radius.circular(4) : const Radius.circular(16),
-                        bottomRight: isAgent ? const Radius.circular(16) : const Radius.circular(4),
+                        bottomLeft: isAgent
+                            ? const Radius.circular(4)
+                            : const Radius.circular(16),
+                        bottomRight: isAgent
+                            ? const Radius.circular(16)
+                            : const Radius.circular(4),
                       ),
-                      border: isAgent ? Border.all(color: Colors.grey.shade200) : null,
+                      border: isAgent
+                          ? Border.all(color: Colors.grey.shade200)
+                          : null,
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withOpacity(0.04),
@@ -400,9 +565,13 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                         ),
                       ],
                     ),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.75,
+                    ),
                     child: Column(
-                      crossAxisAlignment: isAgent ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+                      crossAxisAlignment: isAgent
+                          ? CrossAxisAlignment.start
+                          : CrossAxisAlignment.end,
                       children: [
                         if (msg.content.isNotEmpty)
                           Text(
@@ -413,15 +582,21 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                               height: 1.3,
                             ),
                           ),
-                        if ((msg.messageType == 'offer' || msg.messageType == 'counter') && msg.offerAmount != null)
+                        if ((msg.messageType == 'offer' ||
+                                msg.messageType == 'counter') &&
+                            msg.offerAmount != null)
                           Padding(
-                            padding: EdgeInsets.only(top: msg.content.isNotEmpty ? 12.0 : 0.0),
+                            padding: EdgeInsets.only(
+                              top: msg.content.isNotEmpty ? 12.0 : 0.0,
+                            ),
                             child: Text(
                               'PKR ${msg.offerAmount!.toStringAsFixed(0)}',
                               style: GoogleFonts.inter(
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,
-                                color: isAgent ? AppColors.goldenBrown : Colors.white,
+                                color: isAgent
+                                    ? AppColors.goldenBrown
+                                    : Colors.white,
                               ),
                             ),
                           ),
@@ -436,7 +611,10 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                     ),
                     child: Text(
                       DateFormat('hh:mm a').format(msg.timestamp),
-                      style: GoogleFonts.inter(fontSize: 10, color: Colors.grey.shade500),
+                      style: GoogleFonts.inter(
+                        fontSize: 10,
+                        color: Colors.grey.shade500,
+                      ),
                     ),
                   ),
                 ],
@@ -457,11 +635,19 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.auto_awesome, size: 12, color: AppColors.goldenBrown),
+              const Icon(
+                Icons.auto_awesome,
+                size: 12,
+                color: AppColors.goldenBrown,
+              ),
               const SizedBox(width: 4),
               Text(
                 tr('ai_agent'),
-                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.goldenBrown),
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.goldenBrown,
+                ),
               ),
             ],
           ),
@@ -488,11 +674,32 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: AppColors.goldenBrown)),
+                ScaleTransition(
+                  scale: _pulseAnimation,
+                  child: const Icon(
+                    Icons.circle,
+                    size: 6,
+                    color: AppColors.goldenBrown,
+                  ),
+                ),
                 const SizedBox(width: 4),
-                ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: AppColors.goldenBrown)),
+                ScaleTransition(
+                  scale: _pulseAnimation,
+                  child: const Icon(
+                    Icons.circle,
+                    size: 6,
+                    color: AppColors.goldenBrown,
+                  ),
+                ),
                 const SizedBox(width: 4),
-                ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: AppColors.goldenBrown)),
+                ScaleTransition(
+                  scale: _pulseAnimation,
+                  child: const Icon(
+                    Icons.circle,
+                    size: 6,
+                    color: AppColors.goldenBrown,
+                  ),
+                ),
                 const SizedBox(width: 8),
                 Text(
                   tr('agent_responding'),
@@ -510,6 +717,19 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
     );
   }
 
+  double? _acceptedOfferAmount(
+    NegotiationDetail detail,
+    List<NegotiationMessage> messages,
+  ) {
+    final acceptedMessages = messages
+        .where((message) => message.messageType == 'accept')
+        .toList();
+    if (acceptedMessages.isNotEmpty) {
+      return acceptedMessages.last.offerAmount ?? detail.finalPrice;
+    }
+    return detail.finalPrice;
+  }
+
   Widget _buildDealBanner(NegotiationMessage msg, double? finalPrice) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 16),
@@ -524,18 +744,33 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.check_circle, color: AppColors.mossGreen, size: 28),
+              const Icon(
+                Icons.check_circle,
+                color: AppColors.mossGreen,
+                size: 28,
+              ),
               const SizedBox(width: 12),
-              Text(tr('deal_confirmed'), style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.mossGreen)),
+              Text(
+                tr('deal_confirmed'),
+                style: GoogleFonts.playfairDisplay(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.mossGreen,
+                ),
+              ),
             ],
           ),
           if (finalPrice != null) ...[
             const SizedBox(height: 12),
             Text(
               'PKR ${finalPrice.toStringAsFixed(0)}',
-              style: GoogleFonts.inter(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.mossGreen),
+              style: GoogleFonts.inter(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: AppColors.mossGreen,
+              ),
             ),
-          ]
+          ],
         ],
       ),
     );
@@ -554,140 +789,240 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
         children: [
           Icon(Icons.cancel, color: Colors.grey.shade500),
           const SizedBox(width: 12),
-          Text(tr('negotiation_ended'), style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text(
+            tr('negotiation_ended'),
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.grey.shade700,
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildResponsePanel(NegotiationDetail detail) {
-    if (widget.readOnly || detail.status == 'deal' || detail.status == 'no_deal' || detail.status == 'expired') {
-      String statusKey = '';
-      Color statusColor = Colors.grey;
-      String? extraText;
-      
-      if (detail.status == 'deal') {
-        statusKey = 'deal_at';
-        statusColor = AppColors.mossGreen;
-        extraText = detail.finalPrice?.toStringAsFixed(0) ?? '';
-      } else if (detail.status == 'expired') {
-        statusKey = 'request_expired';
-        statusColor = AppColors.goldenBrown;
-      } else {
-        statusKey = 'negotiation_closed';
-      }
+    final messagesAsync = ref.watch(
+      negotiationMessagesProvider(widget.negotiationId),
+    );
 
-      return Container(
-        padding: const EdgeInsets.all(24),
-        color: Colors.white,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16),
+    return messagesAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (e, s) => const SizedBox.shrink(),
+      data: (messages) {
+        final effectiveStatus = _effectiveStatus(detail, messages);
+
+        if (widget.readOnly ||
+            effectiveStatus == 'deal' ||
+            effectiveStatus == 'no_deal' ||
+            effectiveStatus == 'expired') {
+          String statusKey = '';
+          Color statusColor = Colors.grey;
+          String? extraText;
+
+          if (effectiveStatus == 'deal') {
+            statusKey = 'deal_at';
+            statusColor = AppColors.mossGreen;
+            extraText =
+                (_acceptedOfferAmount(detail, messages)?.toStringAsFixed(0) ??
+                '');
+          } else if (effectiveStatus == 'expired') {
+            statusKey = 'request_expired';
+            statusColor = AppColors.goldenBrown;
+          } else {
+            statusKey = 'negotiation_closed';
+          }
+
+          return Container(
+            padding: const EdgeInsets.all(24),
+            color: Colors.white,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              decoration: BoxDecoration(
+                color: statusColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: statusColor.withOpacity(0.3)),
+              ),
+              child: Center(
+                child: Text(
+                  extraText != null
+                      ? tr(statusKey, args: [extraText])
+                      : tr(statusKey),
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        if (!detail.isVendorTurn) {
+          return Container(
+            padding: const EdgeInsets.all(24),
+            color: Colors.white,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ScaleTransition(
+                  scale: _pulseAnimation,
+                  child: const Icon(
+                    Icons.circle,
+                    size: 6,
+                    color: AppColors.goldenBrown,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ScaleTransition(
+                  scale: _pulseAnimation,
+                  child: const Icon(
+                    Icons.circle,
+                    size: 6,
+                    color: AppColors.goldenBrown,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ScaleTransition(
+                  scale: _pulseAnimation,
+                  child: const Icon(
+                    Icons.circle,
+                    size: 6,
+                    color: AppColors.goldenBrown,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  tr('agent_responding'),
+                  style: GoogleFonts.inter(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.goldenBrown,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: statusColor.withOpacity(0.3)),
-          ),
-          child: Center(
-            child: Text(
-              extraText != null ? tr(statusKey, args: [extraText]) : tr(statusKey),
-              style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: statusColor),
-            ),
-          ),
-        ),
-      );
-    }
-
-    if (!detail.isVendorTurn) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        color: Colors.white,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: AppColors.goldenBrown)),
-            const SizedBox(width: 4),
-            ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: AppColors.goldenBrown)),
-            const SizedBox(width: 4),
-            ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: AppColors.goldenBrown)),
-            const SizedBox(width: 12),
-            Text(tr('agent_responding'), style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.goldenBrown)),
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          SizedBox(
-            width: double.infinity,
-            height: 72, // Largest
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.mossGreen,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 0,
-              ),
-              onPressed: _isSubmitting ? null : () => _showAcceptConfirmSheet(detail),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(tr('accept'), style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-                  Text(
-                    'PKR ${detail.currentOffer.toStringAsFixed(0)}',
-                    style: GoogleFonts.inter(fontSize: 14, color: Colors.white.withOpacity(0.9)),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                flex: 2,
-                child: SizedBox(
-                  height: 56, // Medium
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.goldenBrown,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 0,
-                    ),
-                    onPressed: _isSubmitting ? null : () {
-                      setState(() {
-                        _showCounterSheet = true;
-                      });
-                    },
-                    child: Text(tr('counter_offer'), style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 1,
-                child: SizedBox(
-                  height: 48, // Smallest
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      side: BorderSide(color: Colors.grey.shade400),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _isSubmitting ? null : _showRejectConfirmSheet,
-                    child: Text(tr('reject'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
-                  ),
-                ),
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -4),
               ),
             ],
           ),
-        ],
-      ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: 72,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.mossGreen,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 0,
+                  ),
+                  onPressed: _isSubmitting
+                      ? null
+                      : () => _showAcceptConfirmSheet(detail),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        tr('accept'),
+                        style: GoogleFonts.inter(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'PKR ${detail.currentOffer.toStringAsFixed(0)}',
+                        style: GoogleFonts.inter(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: SizedBox(
+                      height: 56,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.goldenBrown,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        onPressed: _isSubmitting
+                            ? null
+                            : () {
+                                setState(() {
+                                  _showCounterSheet = true;
+                                });
+                              },
+                        child: Text(
+                          tr('counter_offer'),
+                          style: GoogleFonts.inter(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: SizedBox(
+                      height: 48,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.grey.shade400),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: _isSubmitting
+                            ? null
+                            : _showRejectConfirmSheet,
+                        child: Text(
+                          tr('reject'),
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -709,7 +1044,9 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                 return Container(
                   decoration: const BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                    borderRadius: BorderRadius.vertical(
+                      top: Radius.circular(24),
+                    ),
                   ),
                   padding: const EdgeInsets.all(24),
                   child: ListView(
@@ -718,10 +1055,17 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(tr('enter_your_price'), style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.bold)),
+                          Text(
+                            tr('enter_your_price'),
+                            style: GoogleFonts.playfairDisplay(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           IconButton(
                             icon: const Icon(Icons.close),
-                            onPressed: () => setState(() => _showCounterSheet = false),
+                            onPressed: () =>
+                                setState(() => _showCounterSheet = false),
                           ),
                         ],
                       ),
@@ -730,9 +1074,12 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                         valueListenable: _counterAmountController,
                         builder: (context, value, child) {
                           final amount = double.tryParse(value.text);
-                          final isInvalid = value.text.isNotEmpty && amount == null;
-                          final isBelowMin = amount != null && amount < _minPrice;
-                          final canSubmit = amount != null && amount >= _minPrice;
+                          final isInvalid =
+                              value.text.isNotEmpty && amount == null;
+                          final isBelowMin =
+                              amount != null && amount < _minPrice;
+                          final canSubmit =
+                              amount != null && amount >= _minPrice;
 
                           String? errorText;
                           if (isInvalid) errorText = tr('invalid_amount');
@@ -744,19 +1091,42 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                               TextFormField(
                                 controller: _counterAmountController,
                                 keyboardType: TextInputType.number,
-                                style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.bold),
+                                style: GoogleFonts.inter(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
                                 decoration: InputDecoration(
                                   prefixText: 'PKR ',
-                                  prefixStyle: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
+                                  prefixStyle: GoogleFonts.inter(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey.shade600,
+                                  ),
                                   filled: true,
                                   fillColor: Colors.grey.shade50,
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: AppColors.goldenBrown, width: 2)),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: BorderSide.none,
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(16),
+                                    borderSide: const BorderSide(
+                                      color: AppColors.goldenBrown,
+                                      width: 2,
+                                    ),
+                                  ),
                                   errorText: errorText,
                                 ),
                               ),
                               const SizedBox(height: 24),
-                              Text(tr('add_note_optional'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                              Text(
+                                tr('add_note_optional'),
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey.shade700,
+                                ),
+                              ),
                               const SizedBox(height: 8),
                               TextFormField(
                                 controller: _counterNoteController,
@@ -766,7 +1136,10 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                                   hintText: tr('note_hint'),
                                   filled: true,
                                   fillColor: Colors.grey.shade50,
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide.none,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 24),
@@ -776,14 +1149,36 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                                 child: ElevatedButton(
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.goldenBrown,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                     elevation: 0,
-                                    disabledBackgroundColor: Colors.grey.shade300,
+                                    disabledBackgroundColor:
+                                        Colors.grey.shade300,
                                   ),
-                                  onPressed: (!canSubmit || _isSubmitting) ? null : () => _submitCounterOffer(detail, value.text),
+                                  onPressed: (!canSubmit || _isSubmitting)
+                                      ? null
+                                      : () => _submitCounterOffer(
+                                          detail,
+                                          value.text,
+                                        ),
                                   child: _isSubmitting
-                                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                      : Text(tr('send_counter'), style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                                      ? const SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                      : Text(
+                                          tr('send_counter'),
+                                          style: GoogleFonts.inter(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white,
+                                          ),
+                                        ),
                                 ),
                               ),
                             ],
@@ -803,7 +1198,9 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
 
   @override
   Widget build(BuildContext context) {
-    final detailAsync = ref.watch(negotiationDetailProvider(widget.negotiationId));
+    final detailAsync = ref.watch(
+      negotiationDetailProvider(widget.negotiationId),
+    );
 
     return PopScope(
       canPop: !_showCounterSheet,
@@ -821,7 +1218,13 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
           backgroundColor: Colors.white,
           elevation: 0,
           foregroundColor: Colors.black87,
-          title: Text(tr('active_negotiations'), style: GoogleFonts.playfairDisplay(fontSize: 20, fontWeight: FontWeight.bold)),
+          title: Text(
+            tr('active_negotiations'),
+            style: GoogleFonts.playfairDisplay(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
         body: detailAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),

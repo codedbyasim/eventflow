@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:animated_flip_counter/animated_flip_counter.dart';
@@ -27,12 +26,18 @@ enum NegotiatorStatus {
 
 NegotiatorStatus _parseStatus(String? s) {
   switch (s) {
-    case 'negotiating':   return NegotiatorStatus.negotiating;
-    case 'counter_offer': return NegotiatorStatus.counterOffer;
-    case 'deal':          return NegotiatorStatus.deal;
-    case 'no_deal':       return NegotiatorStatus.noDeal;
-    case 'expired':       return NegotiatorStatus.expired;
-    default:              return NegotiatorStatus.connecting;
+    case 'negotiating':
+      return NegotiatorStatus.negotiating;
+    case 'counter_offer':
+      return NegotiatorStatus.counterOffer;
+    case 'deal':
+      return NegotiatorStatus.deal;
+    case 'no_deal':
+      return NegotiatorStatus.noDeal;
+    case 'expired':
+      return NegotiatorStatus.expired;
+    default:
+      return NegotiatorStatus.connecting;
   }
 }
 
@@ -41,9 +46,9 @@ NegotiatorStatus _parseStatus(String? s) {
 // Replaces the old Random()-based VendorNegotiationState.
 // ─────────────────────────────────────────────────────────────────────────────
 class VendorNegotiationState {
-  final String vendor;          // category name (e.g. "Caterer")
-  final String vendorName;      // business name from Firestore
-  final String negotiationId;   // Firestore doc ID
+  final String vendor; // category name (e.g. "Caterer")
+  final String vendorName; // business name from Firestore
+  final String negotiationId; // Firestore doc ID
   final int askingPrice;
   final int currentOffer;
   final NegotiatorStatus status;
@@ -87,8 +92,8 @@ class VendorNegotiationState {
 // ─────────────────────────────────────────────────────────────────────────────
 class LiveDashboardScreen extends StatefulWidget {
   final EventSetupModel model;
-  final Map<String, double> allocations;     // kept for fallback display
-  final String eventFirestoreId;              // NEW: real Firestore event doc ID
+  final Map<String, double> allocations; // kept for fallback display
+  final String eventFirestoreId; // NEW: real Firestore event doc ID
 
   const LiveDashboardScreen({
     super.key,
@@ -118,7 +123,9 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
   @override
   void initState() {
     super.initState();
-    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
+    _confettiController = ConfettiController(
+      duration: const Duration(seconds: 2),
+    );
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -134,7 +141,7 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
   void _showSuccessDialog() {
     final loc = context.loc;
     final isUrdu = context.isUrdu;
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -178,7 +185,9 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  isUrdu ? 'ایونٹ کامیابی سے لانچ ہو گیا!' : 'Event Launched Successfully!',
+                  isUrdu
+                      ? 'ایونٹ کامیابی سے لانچ ہو گیا!'
+                      : 'Event Launched Successfully!',
                   textAlign: TextAlign.center,
                   style: loc.fontStyle(
                     fontSize: 20,
@@ -203,7 +212,10 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                     Expanded(
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFF7A4E1E), width: 1.5),
+                          side: const BorderSide(
+                            color: Color(0xFF7A4E1E),
+                            width: 1.5,
+                          ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
@@ -211,7 +223,9 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                         ),
                         onPressed: () {
                           Navigator.of(context).pop(); // Close dialog
-                          Navigator.of(context).popUntil((route) => route.isFirst); // Go to Home
+                          Navigator.of(
+                            context,
+                          ).popUntil((route) => route.isFirst); // Go to Home
                         },
                         child: Text(
                           isUrdu ? 'ہوم اسکرین' : 'Go to Home',
@@ -242,7 +256,9 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: () {
-                            Navigator.of(context).pop(); // Close dialog to show dashboard
+                            Navigator.of(
+                              context,
+                            ).pop(); // Close dialog to show dashboard
                           },
                           child: Text(
                             isUrdu ? 'لائیو دیکھیں' : 'Watch Live',
@@ -270,37 +286,40 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
   void _startFirestoreListeners() {
     final db = FirebaseFirestore.instance;
 
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
-
-    // Listen to all negotiations for this event
+    // Listen to all negotiations for this event. We rebuild from the full
+    // snapshot so that newly-created, updated, or terminal negotiations are
+    // always reflected correctly on the customer dashboard.
     final sub = db
         .collection('negotiations')
         .where('eventFirestoreId', isEqualTo: widget.eventFirestoreId)
-        .where('customerFirebaseUid', isEqualTo: currentUserId)
         .snapshots()
-        .listen((snapshot) {
-      if (!mounted) return;
+        .listen(
+          (snapshot) {
+            if (!mounted) return;
 
-      for (final change in snapshot.docChanges) {
-        final data = change.doc.data();
-        if (data == null) continue;
+            final nextStateMap = <String, VendorNegotiationState>{};
+            for (final doc in snapshot.docs) {
+              final data = doc.data();
+              if (data == null) continue;
 
-        final state = VendorNegotiationState.fromFirestore(data, change.doc.id);
-        setState(() {
-          _stateMap[state.vendor] = state;
-          _isLoading = false;
-        });
-      }
+              final state = VendorNegotiationState.fromFirestore(data, doc.id);
+              nextStateMap[state.vendor] = state;
+            }
 
-      if (snapshot.docs.isNotEmpty) {
-        setState(() => _isLoading = false);
-      }
+            setState(() {
+              _stateMap
+                ..clear()
+                ..addAll(nextStateMap);
+              _isLoading = false;
+            });
 
-      _checkIfAllFinished();
-    }, onError: (e) {
-      debugPrint('[LiveDashboard] Firestore error: $e');
-      setState(() => _isLoading = false);
-    });
+            _checkIfAllFinished();
+          },
+          onError: (e) {
+            debugPrint('[LiveDashboard] Firestore error: $e');
+            setState(() => _isLoading = false);
+          },
+        );
 
     _subscriptions.add(sub);
 
@@ -309,25 +328,28 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
         .collection('events')
         .doc(widget.eventFirestoreId)
         .snapshots()
-        .listen((eventSnap) {
-      if (!mounted) return;
-      final data = eventSnap.data();
-      if (data == null) return;
-      final status = data['status'] as String? ?? 'draft';
-      setState(() {
-        _eventStatus = status;
-      });
-      if (status == 'ready' || status == 'cancelled') {
-        setState(() {
-          _isLoading = false;
-          if (_stateMap.isEmpty) {
-            _allFinished = true;
-          }
-        });
-      }
-    }, onError: (e) {
-      debugPrint('[LiveDashboard] Event fetch error: $e');
-    });
+        .listen(
+          (eventSnap) {
+            if (!mounted) return;
+            final data = eventSnap.data();
+            if (data == null) return;
+            final status = data['status'] as String? ?? 'draft';
+            setState(() {
+              _eventStatus = status;
+            });
+            if (status == 'ready' || status == 'cancelled') {
+              setState(() {
+                _isLoading = false;
+                if (_stateMap.isEmpty) {
+                  _allFinished = true;
+                }
+              });
+            }
+          },
+          onError: (e) {
+            debugPrint('[LiveDashboard] Event fetch error: $e');
+          },
+        );
 
     _subscriptions.add(eventSub);
   }
@@ -358,47 +380,74 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
 
   Color _statusColor(NegotiatorStatus status) {
     switch (status) {
-      case NegotiatorStatus.connecting:  return const Color(0xFF888888);
-      case NegotiatorStatus.negotiating: return AppColors.strawRed;
-      case NegotiatorStatus.counterOffer:return AppColors.goldenBrown;
-      case NegotiatorStatus.deal:        return AppColors.mossGreen;
-      case NegotiatorStatus.noDeal:      return const Color(0xFF666666);
-      case NegotiatorStatus.expired:     return const Color(0xFF999999);
+      case NegotiatorStatus.connecting:
+        return const Color(0xFF888888);
+      case NegotiatorStatus.negotiating:
+        return AppColors.strawRed;
+      case NegotiatorStatus.counterOffer:
+        return AppColors.goldenBrown;
+      case NegotiatorStatus.deal:
+        return AppColors.mossGreen;
+      case NegotiatorStatus.noDeal:
+        return const Color(0xFF666666);
+      case NegotiatorStatus.expired:
+        return const Color(0xFF999999);
     }
   }
 
   String _statusText(NegotiatorStatus status, dynamic loc) {
     switch (status) {
-      case NegotiatorStatus.connecting:   return loc.get('connecting');
-      case NegotiatorStatus.negotiating:  return loc.get('negotiating');
-      case NegotiatorStatus.counterOffer: return loc.get('counter_offer');
-      case NegotiatorStatus.deal:         return loc.get('deal');
-      case NegotiatorStatus.noDeal:       return loc.get('no_deal');
-      case NegotiatorStatus.expired:      return 'Expired';
+      case NegotiatorStatus.connecting:
+        return loc.get('connecting');
+      case NegotiatorStatus.negotiating:
+        return loc.get('negotiating');
+      case NegotiatorStatus.counterOffer:
+        return loc.get('counter_offer');
+      case NegotiatorStatus.deal:
+        return loc.get('deal');
+      case NegotiatorStatus.noDeal:
+        return loc.get('no_deal');
+      case NegotiatorStatus.expired:
+        return 'Expired';
     }
   }
 
   IconData _getIconForVendor(String vendor) {
     switch (vendor) {
-      case 'Caterer':      return Icons.restaurant_menu;
-      case 'Decorator':    return Icons.auto_awesome;
-      case 'Photographer': return Icons.camera_alt_outlined;
-      case 'DJ / Music':   return Icons.music_note;
-      case 'Tent / Marquee': return Icons.holiday_village_outlined;
-      case 'Sound System': return Icons.speaker;
-      case 'Flowers':      return Icons.local_florist_outlined;
-      case 'Transport':    return Icons.directions_car_outlined;
-      case 'Security':     return Icons.security;
-      default:             return Icons.star_border;
+      case 'Caterer':
+        return Icons.restaurant_menu;
+      case 'Decorator':
+        return Icons.auto_awesome;
+      case 'Photographer':
+        return Icons.camera_alt_outlined;
+      case 'DJ / Music':
+        return Icons.music_note;
+      case 'Tent / Marquee':
+        return Icons.holiday_village_outlined;
+      case 'Sound System':
+        return Icons.speaker;
+      case 'Flowers':
+        return Icons.local_florist_outlined;
+      case 'Transport':
+        return Icons.directions_car_outlined;
+      case 'Security':
+        return Icons.security;
+      default:
+        return Icons.star_border;
     }
   }
 
   String _getLocalizedVendor(String vendor, dynamic loc) {
     final Map<String, String> vendorKeys = {
-      'Caterer': 'caterer', 'Decorator': 'decorator', 'Photographer': 'photographer',
-      'DJ / Music': 'dj_music', 'Tent / Marquee': 'tent_marquee',
-      'Sound System': 'sound_system', 'Flowers': 'flowers',
-      'Transport': 'transport', 'Security': 'security',
+      'Caterer': 'caterer',
+      'Decorator': 'decorator',
+      'Photographer': 'photographer',
+      'DJ / Music': 'dj_music',
+      'Tent / Marquee': 'tent_marquee',
+      'Sound System': 'sound_system',
+      'Flowers': 'flowers',
+      'Transport': 'transport',
+      'Security': 'security',
     };
     final key = vendorKeys[vendor];
     return key != null ? loc.get(key) : vendor;
@@ -419,7 +468,10 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
     _stateMap.forEach((key, state) {
       if (state.status == NegotiatorStatus.deal) {
         lockedInAmount += state.currentOffer;
-        totalSavings += (state.askingPrice - state.currentOffer).clamp(0, 999999999);
+        totalSavings += (state.askingPrice - state.currentOffer).clamp(
+          0,
+          999999999,
+        );
       }
     });
     final int remaining = widget.model.totalBudget - lockedInAmount;
@@ -438,7 +490,10 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                   child: SafeArea(
                     bottom: false,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       child: Row(
                         children: [
                           IconButton(
@@ -446,7 +501,9 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                               isUrdu ? Icons.arrow_forward : Icons.arrow_back,
                               color: const Color(0xFF7A4E1E),
                             ),
-                            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                            onPressed: () => Navigator.of(
+                              context,
+                            ).popUntil((route) => route.isFirst),
                           ),
                           Expanded(
                             child: Column(
@@ -462,9 +519,12 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                                       builder: (context, _) => Opacity(
                                         opacity: _allFinished
                                             ? 0.3
-                                            : 0.3 + (_pulseController.value * 0.7),
+                                            : 0.3 +
+                                                  (_pulseController.value *
+                                                      0.7),
                                         child: Container(
-                                          width: 8, height: 8,
+                                          width: 8,
+                                          height: 8,
                                           decoration: const BoxDecoration(
                                             color: AppColors.strawRed,
                                             shape: BoxShape.circle,
@@ -475,11 +535,15 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                                     const SizedBox(width: 8),
                                     Text(
                                       loc.get('live'),
-                                      style: loc.fontStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: AppColors.strawRed,
-                                      ).copyWith(letterSpacing: isUrdu ? 0 : 2.0),
+                                      style: loc
+                                          .fontStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.strawRed,
+                                          )
+                                          .copyWith(
+                                            letterSpacing: isUrdu ? 0 : 2.0,
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -504,7 +568,10 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                             children: [
                               Text(
                                 loc.get('budget_label'),
-                                style: loc.fontStyle(fontSize: 12, color: const Color(0xFF666666)),
+                                style: loc.fontStyle(
+                                  fontSize: 12,
+                                  color: const Color(0xFF666666),
+                                ),
                               ),
                               Text(
                                 'PKR ${NumberFormat('#,###').format(widget.model.totalBudget)}',
@@ -525,7 +592,10 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
 
                 // ── OVERVIEW CONTAINER ─────────────────────────────────────
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
                   child: Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFFFDFDFD),
@@ -549,7 +619,10 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                                 children: [
                                   Text(
                                     loc.get('locked_in'),
-                                    style: loc.fontStyle(fontSize: 12, color: const Color(0xFF888888)),
+                                    style: loc.fontStyle(
+                                      fontSize: 12,
+                                      color: const Color(0xFF888888),
+                                    ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -564,7 +637,11 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                                 ],
                               ),
                             ),
-                            Container(width: 1, height: 40, color: const Color(0xFFEEEEEE)),
+                            Container(
+                              width: 1,
+                              height: 40,
+                              color: const Color(0xFFEEEEEE),
+                            ),
                             const SizedBox(width: 16),
                             Expanded(
                               child: Column(
@@ -572,7 +649,10 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                                 children: [
                                   Text(
                                     loc.get('remaining'),
-                                    style: loc.fontStyle(fontSize: 12, color: const Color(0xFF888888)),
+                                    style: loc.fontStyle(
+                                      fontSize: 12,
+                                      color: const Color(0xFF888888),
+                                    ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -592,7 +672,10 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                         const SizedBox(height: 16),
                         Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFEDF3E1),
                             borderRadius: BorderRadius.circular(12),
@@ -643,11 +726,16 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          CircularProgressIndicator(color: AppColors.goldenBrown),
+                          CircularProgressIndicator(
+                            color: AppColors.goldenBrown,
+                          ),
                           SizedBox(height: 16),
                           Text(
                             'Connecting to AI agents…',
-                            style: TextStyle(color: Color(0xFF888888), fontSize: 14),
+                            style: TextStyle(
+                              color: Color(0xFF888888),
+                              fontSize: 14,
+                            ),
                           ),
                         ],
                       ),
@@ -661,8 +749,13 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (_eventStatus == 'ready' || _eventStatus == 'cancelled') ...[
-                              const Icon(Icons.info_outline, size: 64, color: AppColors.goldenBrown),
+                            if (_eventStatus == 'ready' ||
+                                _eventStatus == 'cancelled') ...[
+                              const Icon(
+                                Icons.info_outline,
+                                size: 64,
+                                color: AppColors.goldenBrown,
+                              ),
                               const SizedBox(height: 16),
                               Text(
                                 isUrdu
@@ -695,21 +788,34 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(30),
                                   ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
                                 ),
                                 onPressed: () {
-                                  Navigator.of(context).popUntil((route) => route.isFirst);
+                                  Navigator.of(
+                                    context,
+                                  ).popUntil((route) => route.isFirst);
                                 },
                                 child: Text(
-                                  isUrdu ? 'بجٹ تبدیل کریں (ہوم اسکرین)' : 'Adjust Budget (Go Home)',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                                  isUrdu
+                                      ? 'بجٹ تبدیل کریں (ہوم اسکرین)'
+                                      : 'Adjust Budget (Go Home)',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ] else ...[
                               const SizedBox(
                                 width: 50,
                                 height: 50,
-                                child: CircularProgressIndicator(color: AppColors.goldenBrown, strokeWidth: 3),
+                                child: CircularProgressIndicator(
+                                  color: AppColors.goldenBrown,
+                                  strokeWidth: 3,
+                                ),
                               ),
                               const SizedBox(height: 24),
                               Text(
@@ -736,21 +842,36 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                               ),
                               const SizedBox(height: 24),
                               OutlinedButton.icon(
-                                icon: const Icon(Icons.home_outlined, color: Color(0xFF7A4E1E)),
+                                icon: const Icon(
+                                  Icons.home_outlined,
+                                  color: Color(0xFF7A4E1E),
+                                ),
                                 label: Text(
-                                  isUrdu ? 'ہوم اسکرین پر جائیں' : 'Go to Home Screen',
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  isUrdu
+                                      ? 'ہوم اسکرین پر جائیں'
+                                      : 'Go to Home Screen',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: const Color(0xFF7A4E1E),
-                                  side: const BorderSide(color: Color(0xFF7A4E1E), width: 1.5),
+                                  side: const BorderSide(
+                                    color: Color(0xFF7A4E1E),
+                                    width: 1.5,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(30),
                                   ),
-                                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 24,
+                                    vertical: 12,
+                                  ),
                                 ),
                                 onPressed: () {
-                                  Navigator.of(context).popUntil((route) => route.isFirst);
+                                  Navigator.of(
+                                    context,
+                                  ).popUntil((route) => route.isFirst);
                                 },
                               ),
                             ],
@@ -764,12 +885,13 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                   Expanded(
                     child: GridView.builder(
                       padding: const EdgeInsets.all(16).copyWith(bottom: 100),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.95,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                      ),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.95,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                          ),
                       itemCount: displayVendors.length,
                       itemBuilder: (context, index) {
                         final vendor = displayVendors[index];
@@ -795,8 +917,10 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                 blastDirectionality: BlastDirectionality.explosive,
                 shouldLoop: false,
                 colors: const [
-                  AppColors.mossGreen, AppColors.strawRed,
-                  AppColors.goldenBrown, Color(0xFF7A4E1E),
+                  AppColors.mossGreen,
+                  AppColors.strawRed,
+                  AppColors.goldenBrown,
+                  Color(0xFF7A4E1E),
                 ],
               ),
             ),
@@ -823,7 +947,9 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                             borderRadius: BorderRadius.circular(28),
                           ),
                           elevation: 8,
-                          shadowColor: AppColors.goldenBrown.withValues(alpha: 0.5),
+                          shadowColor: AppColors.goldenBrown.withValues(
+                            alpha: 0.5,
+                          ),
                         ),
                         onPressed: () {
                           Navigator.push(
@@ -831,9 +957,11 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                             MaterialPageRoute(
                               builder: (_) => BestCombinationScreen(
                                 eventFirestoreId: widget.eventFirestoreId,
-                                eventBudget: widget.model.totalBudget.toDouble(),
+                                eventBudget: widget.model.totalBudget
+                                    .toDouble(),
                                 eventType: widget.model.eventType ?? 'Event',
-                                eventDate: widget.model.eventDate
+                                eventDate:
+                                    widget.model.eventDate
                                         ?.toIso8601String()
                                         .split('T')
                                         .first ??
@@ -883,7 +1011,11 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
         color: const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -892,17 +1024,30 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
           Row(
             children: [
               Container(
-                width: 32, height: 32,
-                decoration: const BoxDecoration(color: Color(0xFFF0F3EF), shape: BoxShape.circle),
+                width: 32,
+                height: 32,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF0F3EF),
+                  shape: BoxShape.circle,
+                ),
                 alignment: Alignment.center,
-                child: Icon(_getIconForVendor(vendor), size: 18, color: const Color(0xFF2E3D26)),
+                child: Icon(
+                  _getIconForVendor(vendor),
+                  size: 18,
+                  color: const Color(0xFF2E3D26),
+                ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _getLocalizedVendor(vendor, loc),
-                  style: loc.fontStyle(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF333333)),
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: loc.fontStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF333333),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -916,7 +1061,11 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
             ),
             child: Text(
               loc.get('connecting'),
-              style: loc.fontStyle(fontSize: 10, fontWeight: FontWeight.w600, color: const Color(0xFF888888)),
+              style: loc.fontStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF888888),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -941,7 +1090,9 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
   ) {
     final color = _statusColor(state.status);
     final isDeal = state.status == NegotiatorStatus.deal;
-    final isNoDeal = state.status == NegotiatorStatus.noDeal || state.status == NegotiatorStatus.expired;
+    final isNoDeal =
+        state.status == NegotiatorStatus.noDeal ||
+        state.status == NegotiatorStatus.expired;
 
     return GestureDetector(
       onTap: () => Navigator.push(
@@ -966,7 +1117,11 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
           ),
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
-            BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 10, offset: const Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
@@ -975,12 +1130,20 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
             Row(
               children: [
                 Container(
-                  width: 32, height: 32,
-                  decoration: const BoxDecoration(color: Color(0xFFF0F3EF), shape: BoxShape.circle),
+                  width: 32,
+                  height: 32,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF0F3EF),
+                    shape: BoxShape.circle,
+                  ),
                   alignment: Alignment.center,
                   child: Opacity(
                     opacity: isNoDeal ? 0.7 : 1.0,
-                    child: Icon(_getIconForVendor(vendor), size: 18, color: const Color(0xFF2E3D26)),
+                    child: Icon(
+                      _getIconForVendor(vendor),
+                      size: 18,
+                      color: const Color(0xFF2E3D26),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -988,8 +1151,13 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                   child: Text(
                     _getLocalizedVendor(vendor, loc),
                     textAlign: isUrdu ? TextAlign.right : TextAlign.left,
-                    style: loc.fontStyle(fontSize: 13, fontWeight: FontWeight.w600, color: const Color(0xFF333333)),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: loc.fontStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF333333),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -1000,36 +1168,63 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
             if (isDeal)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.mossGreen, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: AppColors.mossGreen,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.check, color: Colors.white, size: 10),
                     const SizedBox(width: 4),
-                    Text(loc.get('deal'), style: loc.fontStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Text(
+                      loc.get('deal'),
+                      style: loc.fontStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
                   ],
                 ),
               )
             else if (isNoDeal)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: AppColors.strawRed, borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: AppColors.strawRed,
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.close, color: Colors.white, size: 10),
                     const SizedBox(width: 4),
-                    Text(loc.get('no_deal'), style: loc.fontStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Text(
+                      loc.get('no_deal'),
+                      style: loc.fontStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
                   ],
                 ),
               )
             else
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Text(
                   _statusText(state.status, loc),
-                  style: loc.fontStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color),
+                  style: loc.fontStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                  ),
                 ),
               ),
 
@@ -1039,7 +1234,11 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
             Text(
               '${loc.get('asking_price')}: ${NumberFormat.compact().format(state.askingPrice)}',
               textDirection: TextDirection.ltr,
-              style: GoogleFonts.inter(fontSize: 11, color: const Color(0xFF999999), decoration: TextDecoration.lineThrough),
+              style: GoogleFonts.inter(
+                fontSize: 11,
+                color: const Color(0xFF999999),
+                decoration: TextDecoration.lineThrough,
+              ),
             ),
             const SizedBox(height: 2),
             Text(
@@ -1048,7 +1247,9 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
               style: GoogleFonts.inter(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: isDeal ? const Color(0xFF2E3D26) : const Color(0xFF333333),
+                color: isDeal
+                    ? const Color(0xFF2E3D26)
+                    : const Color(0xFF333333),
               ),
             ),
             const SizedBox(height: 12),
@@ -1058,17 +1259,26 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                decoration: BoxDecoration(color: const Color(0xFFEDF3E1), borderRadius: BorderRadius.circular(12)),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEDF3E1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 alignment: Alignment.center,
                 child: Text(
                   '${loc.get('saved_pkr')} ${NumberFormat.compact().format((state.askingPrice - state.currentOffer).clamp(0, 99999999))}',
                   textDirection: TextDirection.ltr,
-                  style: loc.fontStyle(fontSize: 10, fontWeight: FontWeight.bold, color: const Color(0xFF2E3D26)),
+                  style: loc.fontStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF2E3D26),
+                  ),
                 ),
               )
             else if (!isNoDeal) ...[
               LinearProgressIndicator(
-                value: state.maxOffers > 0 ? state.offerCount / state.maxOffers : 0,
+                value: state.maxOffers > 0
+                    ? state.offerCount / state.maxOffers
+                    : 0,
                 backgroundColor: const Color(0xFFE8C49A),
                 valueColor: AlwaysStoppedAnimation<Color>(color),
                 minHeight: 4,

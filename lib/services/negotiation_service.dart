@@ -25,30 +25,34 @@ class NegotiationService {
     String eventId,
     String vendorId,
     double amount, {
-    String? firestoreNegotiationId, // Firestore doc ID (may differ from Postgres UUID)
+    String?
+    firestoreNegotiationId, // Firestore doc ID (may differ from Postgres UUID)
   }) async {
     final batch = _db.batch();
     final negRef = _db.collection('negotiations').doc(negotiationId);
 
     batch.update(negRef, {
       'status': 'deal',
+      'currentOffer': amount,
       'finalPrice': amount,
       'closedAt': FieldValue.serverTimestamp(),
       'isVendorTurn': false,
       'lastActivity': FieldValue.serverTimestamp(),
     });
 
-    final msgId = _db.collection('negotiations').doc(negotiationId).collection('messages').doc().id;
-    batch.set(
-      negRef.collection('messages').doc(msgId),
-      {
-        'sender': 'vendor',
-        'content': 'Accepted your offer.',
-        'offerAmount': amount,
-        'messageType': 'accept',
-        'timestamp': FieldValue.serverTimestamp(),
-      },
-    );
+    final msgId = _db
+        .collection('negotiations')
+        .doc(negotiationId)
+        .collection('messages')
+        .doc()
+        .id;
+    batch.set(negRef.collection('messages').doc(msgId), {
+      'sender': 'vendor',
+      'content': 'Accepted your offer.',
+      'offerAmount': amount,
+      'messageType': 'accept',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
 
     await batch.commit();
 
@@ -82,16 +86,13 @@ class NegotiationService {
     // 1. Perform Firestore writes first so the states are in sync when the agent runs
     final batch = _db.batch();
 
-    batch.set(
-      negRef.collection('messages').doc(msgId),
-      {
-        'sender': 'vendor',
-        'content': note,
-        'offerAmount': amount,
-        'messageType': 'counter',
-        'timestamp': FieldValue.serverTimestamp(),
-      },
-    );
+    batch.set(negRef.collection('messages').doc(msgId), {
+      'sender': 'vendor',
+      'content': note,
+      'offerAmount': amount,
+      'messageType': 'counter',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
 
     batch.update(negRef, {
       'currentOffer': amount,
@@ -127,15 +128,12 @@ class NegotiationService {
     });
 
     final msgId = negRef.collection('messages').doc().id;
-    batch.set(
-      negRef.collection('messages').doc(msgId),
-      {
-        'sender': 'vendor',
-        'content': 'Offer rejected.',
-        'messageType': 'reject',
-        'timestamp': FieldValue.serverTimestamp(),
-      },
-    );
+    batch.set(negRef.collection('messages').doc(msgId), {
+      'sender': 'vendor',
+      'content': 'Offer rejected.',
+      'messageType': 'reject',
+      'timestamp': FieldValue.serverTimestamp(),
+    });
 
     await batch.commit();
 
