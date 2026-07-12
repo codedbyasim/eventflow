@@ -351,40 +351,72 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
               child: Column(
                 crossAxisAlignment: isAgent ? CrossAxisAlignment.start : CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    isAgent ? tr('ai_agent') : tr('you'),
-                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isAgent) ...[
+                        const Icon(Icons.auto_awesome, size: 12, color: AppColors.goldenBrown),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(
+                        isAgent ? tr('ai_agent') : tr('you'),
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isAgent ? AppColors.goldenBrown : AppColors.mossGreen,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: isAgent ? AppColors.skyBlue.withOpacity(0.15) : AppColors.mossGreen.withOpacity(0.15),
+                      color: isAgent ? Colors.white : null,
+                      gradient: isAgent
+                          ? null
+                          : const LinearGradient(
+                              colors: [AppColors.mossGreen, Color(0xFF384A3B)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(16),
                         topRight: const Radius.circular(16),
-                        bottomLeft: isAgent ? Radius.zero : const Radius.circular(16),
-                        bottomRight: isAgent ? const Radius.circular(16) : Radius.zero,
+                        bottomLeft: isAgent ? const Radius.circular(4) : const Radius.circular(16),
+                        bottomRight: isAgent ? const Radius.circular(16) : const Radius.circular(4),
                       ),
-                      border: Border.all(
-                        color: isAgent ? AppColors.skyBlue.withOpacity(0.3) : AppColors.mossGreen.withOpacity(0.3),
-                      ),
+                      border: isAgent ? Border.all(color: Colors.grey.shade200) : null,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
                     constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                     child: Column(
                       crossAxisAlignment: isAgent ? CrossAxisAlignment.start : CrossAxisAlignment.end,
                       children: [
                         if (msg.content.isNotEmpty)
-                          Text(msg.content, style: GoogleFonts.inter(fontSize: 15, color: Colors.black87)),
+                          Text(
+                            msg.content,
+                            style: GoogleFonts.inter(
+                              fontSize: 15,
+                              color: isAgent ? Colors.black87 : Colors.white,
+                              height: 1.3,
+                            ),
+                          ),
                         if ((msg.messageType == 'offer' || msg.messageType == 'counter') && msg.offerAmount != null)
                           Padding(
                             padding: EdgeInsets.only(top: msg.content.isNotEmpty ? 12.0 : 0.0),
                             child: Text(
                               'PKR ${msg.offerAmount!.toStringAsFixed(0)}',
                               style: GoogleFonts.inter(
-                                fontSize: 24,
+                                fontSize: 22,
                                 fontWeight: FontWeight.bold,
-                                color: isAgent ? AppColors.skyBlue.withBlue(200) : AppColors.mossGreen, // Using a darker variant for contrast
+                                color: isAgent ? AppColors.goldenBrown : Colors.white,
                               ),
                             ),
                           ),
@@ -392,9 +424,15 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    DateFormat('HH:mm').format(msg.timestamp),
-                    style: GoogleFonts.inter(fontSize: 11, color: Colors.grey.shade400),
+                  Padding(
+                    padding: EdgeInsets.only(
+                      left: isAgent ? 4.0 : 0.0,
+                      right: isAgent ? 0.0 : 4.0,
+                    ),
+                    child: Text(
+                      DateFormat('hh:mm a').format(msg.timestamp),
+                      style: GoogleFonts.inter(fontSize: 10, color: Colors.grey.shade500),
+                    ),
                   ),
                 ],
               ),
@@ -411,31 +449,54 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            tr('ai_agent'),
-            style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade500),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.auto_awesome, size: 12, color: AppColors.goldenBrown),
+              const SizedBox(width: 4),
+              Text(
+                tr('ai_agent'),
+                style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.goldenBrown),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             decoration: BoxDecoration(
-              color: Colors.grey.shade200,
+              color: Colors.white,
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(16),
                 bottomRight: Radius.circular(16),
+                bottomLeft: Radius.circular(4),
               ),
+              border: Border.all(color: Colors.grey.shade200),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.02),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: Colors.grey)),
+                ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: AppColors.goldenBrown)),
                 const SizedBox(width: 4),
-                ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: Colors.grey)),
+                ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: AppColors.goldenBrown)),
                 const SizedBox(width: 4),
-                ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: Colors.grey)),
+                ScaleTransition(scale: _pulseAnimation, child: const Icon(Icons.circle, size: 6, color: AppColors.goldenBrown)),
                 const SizedBox(width: 8),
-                Text(tr('agent_responding'), style: GoogleFonts.inter(fontSize: 12, color: Colors.grey.shade600)),
+                Text(
+                  tr('agent_responding'),
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: AppColors.goldenBrown,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ),
           ),
