@@ -242,7 +242,8 @@ async def run_negotiation_agent(
         # If the vendor's latest counter is already within budget, accept it immediately.
         if vendor_message_content and vendor_offer_amount is not None:
             if should_accept_vendor_price(vendor_offer_amount, allocated_budget, max_budget, floor_price):
-                amount = _normalize_offer_amount(vendor_offer_amount, neg.asking_price, allocated_budget, max_budget, current_round, floor_price)
+                amount = int(vendor_offer_amount)
+                amount = max(int(floor_price or 0), min(amount, hard_cap))
                 await append_negotiation_message(
                     db, negotiation_id,
                     sender="agent", content=f"We accept your price of {amount:,} PKR.",

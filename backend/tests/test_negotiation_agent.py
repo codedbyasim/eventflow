@@ -164,6 +164,65 @@ async def test_negotiation_offer_never_below_floor_price(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_vendor_counter_within_budget_is_accepted_as_is(monkeypatch):
+    negotiation_id = uuid.uuid4()
+
+    async def fake_fetch_negotiation(db, negotiation_id):
+        return types.SimpleNamespace(
+            id=negotiation_id,
+            status="connecting",
+            current_offer=None,
+            asking_price=250000,
+            floor_price=200000,
+            rounds_used=0,
+            max_rounds=5,
+            event_id=uuid.uuid4(),
+            last_processed_message_id=None,
+            processing_locked_at=None,
+            vendor=types.SimpleNamespace(category="Caterer"),
+            event=types.SimpleNamespace(id=uuid.uuid4()),
+        )
+
+    async def fake_append_negotiation_message(*args, **kwargs):
+        return "msg-1"
+
+    async def fake_increment_negotiation_round(*args, **kwargs):
+        return 1
+
+    async def fake_update_negotiation_status(*args, **kwargs):
+        return None
+
+    async def fake_notify_customer(*args, **kwargs):
+        return None
+
+    async def fake_notify_vendor(*args, **kwargs):
+        return None
+
+    def fake_db_session_factory(*args, **kwargs):
+        return FakeSession(
+            allocation=types.SimpleNamespace(allocated_amount=230000, max_budget=230000)
+        )
+
+    monkeypatch.setattr("app.agents.negotiation_agent.db_session", fake_db_session_factory)
+    monkeypatch.setattr("app.agents.negotiation_agent._fetch_negotiation", fake_fetch_negotiation)
+    monkeypatch.setattr("app.agents.negotiation_agent.append_negotiation_message", fake_append_negotiation_message)
+    monkeypatch.setattr("app.agents.negotiation_agent.increment_negotiation_round", fake_increment_negotiation_round)
+    monkeypatch.setattr("app.agents.negotiation_agent.update_negotiation_status", fake_update_negotiation_status)
+    monkeypatch.setattr("app.services.notifications.notify_customer_on_negotiation_update", fake_notify_customer)
+    monkeypatch.setattr("app.services.notifications.notify_vendor_on_negotiation_update", fake_notify_vendor)
+
+    result = await run_negotiation_agent(
+        negotiation_id=negotiation_id,
+        vendor_message_content="We can do 225,000 PKR.",
+        vendor_offer_amount=225000,
+        vendor_message_type="counter",
+    )
+
+    assert result["action"] == "accept_vendor_price"
+    assert result["amount"] == 225000
+
+
+@pytest.mark.asyncio
 async def test_full_pipeline_handles_hard_vendor_quote(monkeypatch):
     event_id = uuid.uuid4()
     negotiation_id = uuid.uuid4()
