@@ -80,7 +80,34 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
 
   Widget _buildCityOption(String cityKey, String subtitle, dynamic loc) {
     final title = loc.get(cityKey);
+    
+    IconData cityIcon;
+    switch (cityKey) {
+      case 'islamabad':
+        cityIcon = Icons.account_balance_outlined;
+        break;
+      case 'lahore':
+        cityIcon = Icons.park_outlined;
+        break;
+      case 'karachi':
+        cityIcon = Icons.waves;
+        break;
+      case 'rawalpindi':
+        cityIcon = Icons.castle_outlined;
+        break;
+      default:
+        cityIcon = Icons.location_city_outlined;
+    }
+
     return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppColors.goldenBrown.withOpacity(0.1),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(cityIcon, color: AppColors.goldenBrown, size: 20),
+      ),
       title: Text(title, style: loc.fontStyle(fontWeight: FontWeight.w600, color: const Color(0xFF1A1A1A), fontSize: 15.0)),
       subtitle: Text(subtitle, style: loc.fontStyle(fontSize: 13.0, color: const Color(0xFF666666))),
       onTap: () {
@@ -365,24 +392,36 @@ class _EventDetailsScreenState extends State<EventDetailsScreen> {
 
   Widget _buildVenueToggle(String label, String value, dynamic loc) {
     final isSelected = _venuePref == value;
+    final icon = value == 'Indoor' ? Icons.home_outlined : Icons.park_outlined;
+
     return GestureDetector(
       onTap: () => setState(() => _venuePref = value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         height: 52,
-        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isSelected ? AppColors.goldenBrown : Colors.white,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: isSelected ? AppColors.goldenBrown : const Color(0xFFE8C49A)),
         ),
-        child: Text(
-          label,
-          style: loc.fontStyle(
-            fontSize: 15.0,
-            fontWeight: FontWeight.w600,
-            color: isSelected ? Colors.white : const Color(0xFF7A4E1E),
-          ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? Colors.white : AppColors.goldenBrown,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              style: loc.fontStyle(
+                fontSize: 15.0,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? Colors.white : const Color(0xFF7A4E1E),
+              ),
+            ),
+          ],
         ),
       ),
     );
