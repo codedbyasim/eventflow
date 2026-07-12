@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.agents.analyzer_agent import run_analyzer_agent
 from app.agents.negotiation_agent import run_negotiation_agent
+from app.agents.prompts import NEGOTIATION_TOOLS
 from app.services.vendor_matching import MatchedVendor, match_all_categories, match_vendors
 
 
@@ -58,6 +59,11 @@ class FakeMatchingSession:
                 ]
             )
         )
+
+
+def test_negotiation_tools_do_not_expose_auto_accept():
+    tool_names = {tool["function"]["name"] for tool in NEGOTIATION_TOOLS}
+    assert "accept_vendor_price" not in tool_names
 
 
 @pytest.mark.asyncio
@@ -158,7 +164,7 @@ async def test_negotiation_offer_never_below_floor_price(monkeypatch):
         vendor_message_type="counter",
     )
 
-    assert result["action"] == "accept_vendor_price"
+    assert result["action"] == "send_offer"
     assert result["amount"] >= 220000
     assert result["amount"] <= 250000
 
@@ -166,6 +172,9 @@ async def test_negotiation_offer_never_below_floor_price(monkeypatch):
 @pytest.mark.asyncio
 async def test_vendor_counter_within_budget_is_accepted_as_is(monkeypatch):
     negotiation_id = uuid.uuid4()
+
+    async def fake_call_fireworks(*, messages, tools, agent_type, event_id, negotiation_id, **kwargs):
+        return {"amount": 225000, "message": "We can continue discussing this offer."}
 
     async def fake_fetch_negotiation(db, negotiation_id):
         return types.SimpleNamespace(
@@ -203,6 +212,7 @@ async def test_vendor_counter_within_budget_is_accepted_as_is(monkeypatch):
             allocation=types.SimpleNamespace(allocated_amount=230000, max_budget=230000)
         )
 
+    monkeypatch.setattr("app.agents.negotiation_agent.call_fireworks", fake_call_fireworks)
     monkeypatch.setattr("app.agents.negotiation_agent.db_session", fake_db_session_factory)
     monkeypatch.setattr("app.agents.negotiation_agent._fetch_negotiation", fake_fetch_negotiation)
     monkeypatch.setattr("app.agents.negotiation_agent.append_negotiation_message", fake_append_negotiation_message)
@@ -218,8 +228,9 @@ async def test_vendor_counter_within_budget_is_accepted_as_is(monkeypatch):
         vendor_message_type="counter",
     )
 
-    assert result["action"] == "accept_vendor_price"
-    assert result["amount"] == 225000
+    assert result["action"] == "send_offer"
+    assert result["amount"] >= 200000
+    assert result["amount"] <= 230000
 
 
 @pytest.mark.asyncio

@@ -303,7 +303,7 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
               if (data == null) continue;
 
               final state = VendorNegotiationState.fromFirestore(data, doc.id);
-              nextStateMap[state.vendor] = state;
+              nextStateMap[state.negotiationId] = state;
             }
 
             setState(() {
@@ -362,6 +362,13 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
           v.status == NegotiatorStatus.noDeal ||
           v.status == NegotiatorStatus.expired,
     );
+    if (allDone) {
+      setState(() {
+        _allFinished = true;
+      });
+      _confettiController.play();
+      return;
+    }
     if (allDone && !_allFinished) {
       setState(() => _allFinished = true);
       _confettiController.play();
@@ -894,15 +901,15 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                           ),
                       itemCount: displayVendors.length,
                       itemBuilder: (context, index) {
-                        final vendor = displayVendors[index];
-                        final state = _stateMap[vendor];
+                        final negotiationKey = displayVendors[index];
+                        final state = _stateMap[negotiationKey];
 
-                        // While waiting for Firestore, show connecting placeholder
                         if (state == null) {
-                          return _buildPlaceholderCard(vendor, loc, isUrdu);
+                          final fallbackVendor = widget.model.selectedVendors[index % widget.model.selectedVendors.length];
+                          return _buildPlaceholderCard(fallbackVendor, loc, isUrdu);
                         }
 
-                        return _buildVendorCard(state, vendor, loc, isUrdu);
+                        return _buildVendorCard(state, state.vendor, loc, isUrdu);
                       },
                     ),
                   ),
