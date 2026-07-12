@@ -165,9 +165,25 @@ async def run_negotiation_agent(
             )
             return {"action": "walk_away", "reason": "max rounds reached"}
 
+        from app.models.event_vendor_allocation import EventVendorAllocation
+        
+        allocation_stmt = select(EventVendorAllocation).where(
+            EventVendorAllocation.event_id == neg.event_id,
+            EventVendorAllocation.category == neg.vendor.category
+        )
+        allocation_res = await db.execute(allocation_stmt)
+        allocation = allocation_res.scalar_one_or_none()
+        
+        if allocation:
+            allocated_budget = allocation.allocated_amount
+            max_budget = allocation.max_budget or int(allocation.allocated_amount * 1.1)
+        else:
+            allocated_budget = int(neg.asking_price * 0.85)
+            max_budget = neg.asking_price
+
         system_prompt = NEGOTIATION_SYSTEM_PROMPT.format(
-            allocated_budget=neg.current_offer or neg.asking_price,  # placeholder; real value from allocation
-            max_budget=neg.asking_price,   # will be overridden by orchestrator in Phase 3
+            allocated_budget=allocated_budget,
+            max_budget=max_budget,
             asking_price=neg.asking_price,
             current_round=current_round,
             max_rounds=max_rounds,
@@ -320,7 +336,15 @@ async def run_negotiation_agent(
 # ─────────────────────────────────────────────────────────────────────────────
 
 async def _fetch_negotiation(db: AsyncSession, negotiation_id: uuid.UUID) -> Negotiation | None:
-    result = await db.execute(select(Negotiation).where(Negotiation.id == negotiation_id))
+    from sqlalchemy.orm import selectinload
+    result = await db.execute(
+        select(Negotiation)
+        .options(
+            selectinload(Negotiation.vendor),
+            selectinload(Negotiation.event)
+        )
+        .where(Negotiation.id == negotiation_id)
+    )
     return result.scalar_one_or_none()
 
 
