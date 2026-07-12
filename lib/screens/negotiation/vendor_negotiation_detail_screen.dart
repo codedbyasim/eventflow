@@ -275,10 +275,6 @@ class _VendorNegotiationDetailScreenState extends ConsumerState<VendorNegotiatio
                 tr(detail.eventType),
                 style: GoogleFonts.playfairDisplay(fontSize: 22, fontWeight: FontWeight.bold),
               ),
-              Text(
-                tr('budget_allocated', args: [detail.budgetAllocated.toStringAsFixed(0)]),
-                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.goldenBrown),
-              ),
             ],
           ),
           const SizedBox(height: 12),
