@@ -73,6 +73,12 @@ firebase.json
 .env.*
 *.env
 
+# SRS and customizations/skills
+[sS][rR][sS].md
+[sS][kK][iI][lL][lL].[mM][dD]
+[sS][kK][iI][lL][lL][sS].[mM][dD]
+skills/
+
 # ============================================================
 # Project-specific scratch / temp files
 # ============================================================

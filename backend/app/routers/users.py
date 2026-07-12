@@ -98,6 +98,19 @@ async def onboard_vendor(
     if user.role != "vendor":
         raise HTTPException(status_code=400, detail="Only vendors can onboard.")
 
+    # Normalize category keys to match standard Postgres/matching categories
+    category_map = {
+        "caterer": "Caterer",
+        "decorator": "Decorator",
+        "photographer": "Photographer",
+        "dj_sound": "DJ / Music",
+        "tent": "Tent / Marquee",
+        "security": "Security",
+        "flowers": "Flowers",
+        "other": "Other"
+    }
+    normalized_category = category_map.get(body.category.lower(), body.category)
+
     # 1. Check if this firebase_uid is already linked to a vendor in Postgres
     result = await db.execute(select(Vendor).where(Vendor.firebase_uid == user.uid))
     vendor = result.scalar_one_or_none()
@@ -106,7 +119,7 @@ async def onboard_vendor(
         # Try to find a seeded vendor in the same city and category with no firebase_uid
         # to "claim" it and preserve matching
         stmt = select(Vendor).where(
-            Vendor.category == body.category,
+            Vendor.category == normalized_category,
             Vendor.city == body.city.lower(),
             Vendor.firebase_uid == None
         ).limit(1)
@@ -127,7 +140,7 @@ async def onboard_vendor(
                 id=uuid.uuid4(),
                 firebase_uid=user.uid,
                 business_name=body.business_name,
-                category=body.category,
+                category=normalized_category,
                 city=body.city.lower(),
                 base_price_min=body.min_price,
                 base_price_max=body.base_price,
@@ -140,7 +153,7 @@ async def onboard_vendor(
     else:
         # Update existing linked vendor
         vendor.business_name = body.business_name
-        vendor.category = body.category
+        vendor.category = normalized_category
         vendor.city = body.city.lower()
         vendor.base_price_min = body.min_price
         vendor.base_price_max = body.base_price

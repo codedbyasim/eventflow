@@ -40,7 +40,7 @@ class _EventTypeScreenState extends State<EventTypeScreen> {
       'titleKey': 'birthday_anniversary',
       'title': 'Birthday / Anniversary',
       'subtitle': 'سالگرہ',
-      'vendors': ['Caterer', 'Decorator', 'Photographer', 'Entertainment'],
+      'vendors': ['Caterer', 'Decorator', 'Photographer', 'DJ / Music'],
       'bgColor': const Color(0xFFC73038), // Rich Strawberry Red
     },
     {

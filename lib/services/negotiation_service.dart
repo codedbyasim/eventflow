@@ -84,16 +84,7 @@ class NegotiationService {
     final negRef = _db.collection('negotiations').doc(negotiationId);
     final msgId = negRef.collection('messages').doc().id;
 
-    // 1. Validate with backend first. If this throws, Firestore update is skipped.
-    await _notifyBackend(
-      negotiationId: firestoreNegotiationId ?? negotiationId,
-      messageId: msgId,
-      messageType: 'counter',
-      content: note,
-      offerAmount: amount.toInt(),
-    );
-
-    // 2. Since backend validated successfully, perform Firestore writes
+    // 1. Perform Firestore writes first so the states are in sync when the agent runs
     final batch = _db.batch();
 
     batch.set(
@@ -115,6 +106,15 @@ class NegotiationService {
     });
 
     await batch.commit();
+
+    // 2. Notify backend to trigger the agent's turn
+    await _notifyBackend(
+      negotiationId: firestoreNegotiationId ?? negotiationId,
+      messageId: msgId,
+      messageType: 'counter',
+      content: note,
+      offerAmount: amount.toInt(),
+    );
   }
 
   /// Vendor rejects the negotiation. (FR-VND-02)
