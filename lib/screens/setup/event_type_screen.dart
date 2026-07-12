@@ -231,20 +231,6 @@ class _EventTypeScreenState extends State<EventTypeScreen> {
                                             color: Colors.white,
                                           ),
                                         ),
-                                        // Urdu Subtitle
-                                        if (!isUrdu) ...[
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            eventType['subtitle'],
-                                            textAlign: TextAlign.center,
-                                            style: GoogleFonts.notoNastaliqUrdu(
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w300,
-                                              color: Colors.white.withOpacity(0.8),
-                                              height: 1.5,
-                                            ),
-                                          ),
-                                        ],
                                       ],
                                     ),
                                   ),
