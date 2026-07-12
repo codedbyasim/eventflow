@@ -138,9 +138,8 @@ async def orchestrate_negotiations(
         if isinstance(result, Exception):
             logger.error("Negotiation task %s raised exception: %s", neg_id, result)
 
-    # ── Aggregator runs after all tasks finish (FR-AGG-01) ────────────────
-    logger.info("All negotiation tasks done for event %s. Running Aggregator.", event_id)
-    await run_aggregator_agent(event_id, event_firestore_id)
+    # Initial offers have been sent. The event remains in "negotiating" status
+    # until vendors reply and negotiations reach terminal states (deal/no_deal/expired).
 
 
 async def _run_with_timeout(

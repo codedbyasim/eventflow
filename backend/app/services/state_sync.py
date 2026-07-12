@@ -107,6 +107,31 @@ async def update_negotiation_status(
     )
     await db.flush()
 
+    # If the new status is terminal, check if all negotiations for this event are terminal
+    if status in ("deal", "no_deal", "expired"):
+        # Fetch event_id first
+        res = await db.execute(
+            select(Negotiation.event_id).where(Negotiation.id == negotiation_id)
+        )
+        event_id = res.scalar_one_or_none()
+        if event_id:
+            from app.models.event import Event
+            event_res = await db.execute(
+                select(Event.firestore_id).where(Event.id == event_id)
+            )
+            event_firestore_id = event_res.scalar_one_or_none()
+            
+            # Fetch all negotiations for this event
+            all_res = await db.execute(
+                select(Negotiation.status).where(Negotiation.event_id == event_id)
+            )
+            all_statuses = all_res.scalars().all()
+            
+            if all(s in ("deal", "no_deal", "expired") for s in all_statuses):
+                logger.info("All negotiations for event %s are closed. Running Aggregator.", event_id)
+                from app.agents.aggregator_agent import run_aggregator_agent
+                await run_aggregator_agent(event_id, event_firestore_id)
+
     # Fetch firestore_id + rounds_used for mirror
     result = await db.execute(
         select(Negotiation.firestore_id, Negotiation.rounds_used, Negotiation.max_rounds)
