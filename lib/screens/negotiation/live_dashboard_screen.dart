@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:animated_flip_counter/animated_flip_counter.dart';
@@ -268,10 +269,13 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
   void _startFirestoreListeners() {
     final db = FirebaseFirestore.instance;
 
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+
     // Listen to all negotiations for this event
     final sub = db
         .collection('negotiations')
         .where('eventFirestoreId', isEqualTo: widget.eventFirestoreId)
+        .where('customerFirebaseUid', isEqualTo: currentUserId)
         .snapshots()
         .listen((snapshot) {
       if (!mounted) return;
