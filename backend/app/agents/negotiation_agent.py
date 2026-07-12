@@ -55,10 +55,15 @@ def _normalize_offer_amount(amount: Any, asking_price: int, allocated_budget: in
     return max(0, min(target, hard_cap))
 
 
-def should_accept_vendor_price(vendor_amount: int, allocated_budget: int, max_budget: int) -> bool:
+def should_accept_vendor_price(vendor_amount: Any, allocated_budget: int, max_budget: int) -> bool:
     """Return True when the vendor's price fits inside the customer's allowed envelope."""
+    try:
+        numeric_amount = int(vendor_amount)
+    except (TypeError, ValueError):
+        return False
+
     hard_cap = min(max_budget, allocated_budget)
-    return hard_cap > 0 and 0 <= vendor_amount <= hard_cap
+    return hard_cap > 0 and 0 <= numeric_amount <= hard_cap
 
 
 async def run_negotiation_agent(

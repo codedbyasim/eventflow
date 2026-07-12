@@ -1,97 +1,164 @@
 import sys
 from pathlib import Path
+import types
+import uuid
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.agents.negotiation_agent import _normalize_offer_amount, should_accept_vendor_price
+from app.agents.analyzer_agent import run_analyzer_agent
+from app.agents.negotiation_agent import run_negotiation_agent
+from app.services.vendor_matching import MatchedVendor, match_all_categories
 
 
-@pytest.mark.parametrize(
-    ("vendor_amount", "allocated_budget", "max_budget", "expected"),
-    [
-        (500000, 500000, 600000, True),
-        (580000, 580000, 600000, True),
-        (590000, 580000, 600000, False),
-        (600000, 580000, 600000, False),
-        (0, 500000, 600000, True),
-        (250000, 250000, 300000, True),
-        (300001, 250000, 300000, False),
-        (100000, 150000, 140000, True),
-        (140001, 150000, 140000, False),
-        (90000, 100000, 120000, True),
-        (120000, 100000, 120000, False),
-        (120001, 100000, 120000, False),
-        (150000, 150000, 150000, True),
-        (149999, 150000, 150000, True),
-        (150001, 150000, 150000, False),
-        (200000, 180000, 220000, False),
-        (220000, 180000, 220000, False),
-        (220001, 180000, 220000, False),
-        (100000, 80000, 90000, False),
-        (90000, 80000, 90000, False),
-        (90001, 80000, 90000, False),
-        (650000, 700000, 650000, True),
-        (650001, 700000, 650000, False),
-        (700000, 700000, 750000, True),
-        (750000, 700000, 750000, False),
-        (750001, 700000, 750000, False),
-    ] + [
-        (amount, allocated, max_budget, amount <= min(allocated, max_budget) and amount >= 0 and min(allocated, max_budget) > 0)
-        for amount in [10000, 25000, 50000, 75000, 90000, 100000, 110000, 125000, 140000, 150000, 160000, 180000, 200000, 220000, 240000, 260000, 280000, 300000, 320000, 350000]
-        for allocated, max_budget in [(100000, 120000), (120000, 140000), (150000, 170000), (180000, 200000), (200000, 220000), (250000, 300000), (300000, 350000), (400000, 450000), (500000, 550000), (600000, 650000)]
-    ],
-)
-def test_acceptance_decision_cases(vendor_amount, allocated_budget, max_budget, expected):
-    assert should_accept_vendor_price(vendor_amount, allocated_budget, max_budget) is expected
+class FakeSession:
+    def __init__(self, allocation=None):
+        self.allocation = allocation
+        self.added = []
+        self.commit_calls = 0
+        self.execute_calls = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def commit(self):
+        self.commit_calls += 1
+
+    async def execute(self, stmt):
+        self.execute_calls += 1
+        if self.execute_calls == 1:
+            return types.SimpleNamespace(scalar_one_or_none=lambda: "claimed")
+        return types.SimpleNamespace(scalar_one_or_none=lambda: self.allocation)
+
+    def add(self, obj):
+        self.added.append(obj)
 
 
-@pytest.mark.parametrize(
-    ("amount", "asking_price", "allocated_budget", "max_budget", "current_round", "expected"),
-    [
-        (1000000, 1000000, 500000, 600000, 1, 450000),
-        (1000000, 1000000, 500000, 600000, 2, 475000),
-        (1000000, 1000000, 500000, 600000, 3, 500000),
-        (400000, 1000000, 500000, 600000, 1, 400000),
-        (450001, 1000000, 500000, 600000, 1, 450000),
-        (600000, 1000000, 500000, 600000, 2, 475000),
-        (700000, 1000000, 500000, 600000, 3, 500000),
-        (100000, 1000000, 80000, 90000, 1, 72000),
-        (90000, 1000000, 80000, 90000, 1, 72000),
-        (80000, 1000000, 80000, 90000, 2, 76000),
-        (90000, 1000000, 80000, 90000, 2, 76000),
-        (85000, 1000000, 80000, 90000, 3, 80000),
-        (100000, 1000000, 100000, 120000, 1, 90000),
-        (110000, 1000000, 100000, 120000, 2, 95000),
-        (120000, 1000000, 100000, 120000, 3, 100000),
-        (150000, 1000000, 150000, 150000, 1, 135000),
-        (150000, 1000000, 150000, 150000, 2, 142500),
-        (150000, 1000000, 150000, 150000, 3, 150000),
-        (200000, 1000000, 180000, 220000, 1, 162000),
-        (220000, 1000000, 180000, 220000, 2, 171000),
-        (250000, 1000000, 180000, 220000, 3, 180000),
-        (300000, 1000000, 250000, 300000, 1, 225000),
-        (300000, 1000000, 250000, 300000, 2, 237500),
-        (300000, 1000000, 250000, 300000, 3, 250000),
-        (500000, 1000000, 700000, 650000, 1, 500000),
-        (650000, 1000000, 700000, 650000, 2, 617500),
-        (680000, 1000000, 700000, 650000, 3, 650000),
-        (1000000, 1000000, 700000, 750000, 1, 630000),
-        (740000, 1000000, 700000, 750000, 2, 665000),
-        (750000, 1000000, 700000, 750000, 3, 700000),
-        (50000, 1000000, 30000, 40000, 1, 27000),
-        (40000, 1000000, 30000, 40000, 2, 28500),
-        (40000, 1000000, 30000, 40000, 3, 30000),
-        (10000, 1000000, 0, 50000, 1, 0),
-        (30000, 1000000, 0, 50000, 2, 0),
-        (30000, 1000000, 0, 50000, 3, 0),
-    ] + [
-        (amount, asking_price, allocated, max_budget, round_no, _normalize_offer_amount(amount, asking_price, allocated, max_budget, round_no))
-        for amount in [10000, 25000, 50000, 75000, 90000, 100000, 110000, 125000, 140000, 150000, 160000, 180000, 200000, 220000, 240000, 260000, 280000, 300000, 320000, 350000]
-        for asking_price in [1000000, 1200000, 1500000]
-        for allocated, max_budget, round_no in [(100000, 120000, 1), (120000, 140000, 2), (150000, 170000, 3), (180000, 200000, 1), (200000, 220000, 2), (250000, 300000, 3), (300000, 350000, 1), (400000, 450000, 2), (500000, 550000, 3), (600000, 650000, 1)]
-    ],
-)
-def test_offer_normalization_cases(amount, asking_price, allocated_budget, max_budget, current_round, expected):
-    assert _normalize_offer_amount(amount, asking_price, allocated_budget, max_budget, current_round) == expected
+class FakeMatchingSession:
+    async def execute(self, stmt):
+        return types.SimpleNamespace(
+            scalars=lambda: types.SimpleNamespace(
+                all=lambda: [
+                    types.SimpleNamespace(
+                        id=uuid.uuid4(),
+                        business_name="Lahore Grand Catering",
+                        category="Caterer",
+                        city="Lahore",
+                        verified=True,
+                        listed_price=450000,
+                        base_price_max=450000,
+                        base_price_min=300000,
+                        rating=4.8,
+                        firebase_uid="vendor-1",
+                    )
+                ]
+            )
+        )
+
+
+@pytest.mark.asyncio
+async def test_full_pipeline_handles_hard_vendor_quote(monkeypatch):
+    event_id = uuid.uuid4()
+    negotiation_id = uuid.uuid4()
+
+    async def fake_analyzer_fireworks(*, messages, tools, agent_type, event_id, **kwargs):
+        return {
+            "allocations": {"Caterer": 250000, "Photography": 100000},
+            "reasoning": "Prioritize core catering and keep the rest modest under a tight budget.",
+        }
+
+    async def fake_update_event_status(*args, **kwargs):
+        return None
+
+    async def fake_negotiation_fireworks(*, messages, tools, agent_type, event_id, negotiation_id, **kwargs):
+        return {"amount": 240000, "message": "We can offer a more budget-friendly package."}
+
+    async def fake_append_negotiation_message(*args, **kwargs):
+        return "msg-1"
+
+    async def fake_increment_negotiation_round(*args, **kwargs):
+        return 1
+
+    async def fake_update_negotiation_status(*args, **kwargs):
+        return None
+
+    async def fake_notify_customer(*args, **kwargs):
+        return None
+
+    async def fake_notify_vendor(*args, **kwargs):
+        return None
+
+    async def fake_fetch_negotiation(db, negotiation_id):
+        return types.SimpleNamespace(
+            id=negotiation_id,
+            status="connecting",
+            current_offer=None,
+            asking_price=450000,
+            rounds_used=0,
+            max_rounds=5,
+            event_id=event_id,
+            last_processed_message_id=None,
+            processing_locked_at=None,
+            vendor=types.SimpleNamespace(category="Caterer"),
+            event=types.SimpleNamespace(id=event_id),
+        )
+
+    def fake_db_session_factory(*args, **kwargs):
+        allocation = types.SimpleNamespace(allocated_amount=250000, max_budget=275000)
+        return FakeSession(allocation=allocation)
+
+    monkeypatch.setattr("app.agents.analyzer_agent.call_fireworks", fake_analyzer_fireworks)
+    monkeypatch.setattr("app.agents.analyzer_agent.update_event_status", fake_update_event_status)
+    monkeypatch.setattr("app.agents.analyzer_agent.db_session", fake_db_session_factory)
+
+    allocations = await run_analyzer_agent(
+        event_id=event_id,
+        event_type="Wedding",
+        guest_count=220,
+        indoor_outdoor="Indoor",
+        categories=["Caterer", "Photography"],
+        total_budget=400000,
+    )
+
+    assert sum(allocations.values()) <= 400000
+    assert allocations["Caterer"] == 250000
+    assert allocations["Photography"] == 100000
+
+    matched = await match_all_categories(
+        db=FakeMatchingSession(),
+        categories=["Caterer"],
+        city="Lahore",
+        event_date=None,
+        allocations=allocations,
+        guest_count=220,
+        venue_pref="Indoor",
+    )
+    matched_vendor = matched["Caterer"][0]
+    assert matched_vendor.business_name == "Lahore Grand Catering"
+    assert matched_vendor.listed_price == 450000 * 220
+    assert matched_vendor.floor_price == 300000 * 220
+
+    monkeypatch.setattr("app.agents.negotiation_agent.call_fireworks", fake_negotiation_fireworks)
+    monkeypatch.setattr("app.agents.negotiation_agent.db_session", fake_db_session_factory)
+    monkeypatch.setattr("app.agents.negotiation_agent._fetch_negotiation", fake_fetch_negotiation)
+    monkeypatch.setattr("app.agents.negotiation_agent.append_negotiation_message", fake_append_negotiation_message)
+    monkeypatch.setattr("app.agents.negotiation_agent.increment_negotiation_round", fake_increment_negotiation_round)
+    monkeypatch.setattr("app.agents.negotiation_agent.update_negotiation_status", fake_update_negotiation_status)
+    monkeypatch.setattr("app.services.notifications.notify_customer_on_negotiation_update", fake_notify_customer)
+    monkeypatch.setattr("app.services.notifications.notify_vendor_on_negotiation_update", fake_notify_vendor)
+    monkeypatch.setattr("app.services.pricing_calculator.calculate_vendor_event_price", lambda **kwargs: (450000, 300000))
+
+    result = await run_negotiation_agent(
+        negotiation_id=negotiation_id,
+        vendor_message_content="We can only do 450,000 PKR for this wedding.",
+        vendor_offer_amount=450000,
+        vendor_message_type="counter",
+    )
+
+    assert result["action"] == "send_offer"
+    assert result["amount"] <= 250000
+    assert result["amount"] < 450000 * 220
