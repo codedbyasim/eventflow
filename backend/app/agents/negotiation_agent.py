@@ -33,8 +33,8 @@ from app.services.state_sync import (
 logger = logging.getLogger(__name__)
 
 
-def _normalize_offer_amount(amount: Any, asking_price: int, allocated_budget: int, max_budget: int, current_round: int) -> int:
-    """Clamp negotiation offers to the customer's spending envelope and keep early rounds conservative."""
+def _normalize_offer_amount(amount: Any, asking_price: int, allocated_budget: int, max_budget: int, current_round: int, floor_price: int = 0) -> int:
+    """Clamp negotiation offers to the customer's spending envelope and the vendor floor price."""
     try:
         raw_value = int(amount)
     except (TypeError, ValueError):
@@ -44,6 +44,8 @@ def _normalize_offer_amount(amount: Any, asking_price: int, allocated_budget: in
     if hard_cap <= 0:
         return 0
 
+    lower_bound = min(max(0, int(floor_price or 0)), hard_cap)
+
     # Make initial rounds more conservative, then allow a modest step-up toward the cap.
     if current_round <= 1:
         target = min(raw_value, int(hard_cap * 0.9))
@@ -52,18 +54,19 @@ def _normalize_offer_amount(amount: Any, asking_price: int, allocated_budget: in
     else:
         target = min(raw_value, hard_cap)
 
-    return max(0, min(target, hard_cap))
+    return max(lower_bound, min(target, hard_cap))
 
 
-def should_accept_vendor_price(vendor_amount: Any, allocated_budget: int, max_budget: int) -> bool:
-    """Return True when the vendor's price fits inside the customer's allowed envelope."""
+def should_accept_vendor_price(vendor_amount: Any, allocated_budget: int, max_budget: int, floor_price: int = 0) -> bool:
+    """Return True when the vendor's price fits inside the customer's allowed envelope and meets the floor."""
     try:
         numeric_amount = int(vendor_amount)
     except (TypeError, ValueError):
         return False
 
     hard_cap = min(max_budget, allocated_budget)
-    return hard_cap > 0 and 0 <= numeric_amount <= hard_cap
+    floor_value = max(0, int(floor_price or 0))
+    return hard_cap > 0 and floor_value <= numeric_amount <= hard_cap
 
 
 async def run_negotiation_agent(
@@ -183,6 +186,7 @@ async def run_negotiation_agent(
         # ── Prepare context for LLM ───────────────────────────────────────
         current_round = neg.rounds_used + 1
         max_rounds = neg.max_rounds
+        floor_price = int(getattr(neg, "floor_price", 0) or 0)
 
         if current_round > max_rounds:
             # Max rounds exceeded — walk away (FR-NEG-07)
@@ -214,18 +218,31 @@ async def run_negotiation_agent(
             allocated_budget = int(neg.asking_price * 0.85)
             max_budget = neg.asking_price
 
+        hard_cap = min(max_budget, allocated_budget)
+        if floor_price > hard_cap:
+            await _walk_away(
+                db,
+                negotiation_id,
+                "Vendor minimum price exceeds the customer's budget. Please increase the budget to continue.",
+                vendor_message_id,
+            )
+            neg.processing_locked_at = None
+            await db.commit()
+            return {"action": "walk_away", "reason": "vendor minimum exceeds budget"}
+
         system_prompt = NEGOTIATION_SYSTEM_PROMPT.format(
             allocated_budget=allocated_budget,
             max_budget=max_budget,
             asking_price=neg.asking_price,
+            floor_price=floor_price,
             current_round=current_round,
             max_rounds=max_rounds,
         )
 
         # If the vendor's latest counter is already within budget, accept it immediately.
         if vendor_message_content and vendor_offer_amount is not None:
-            if should_accept_vendor_price(vendor_offer_amount, allocated_budget, max_budget):
-                amount = _normalize_offer_amount(vendor_offer_amount, neg.asking_price, allocated_budget, max_budget, current_round)
+            if should_accept_vendor_price(vendor_offer_amount, allocated_budget, max_budget, floor_price):
+                amount = _normalize_offer_amount(vendor_offer_amount, neg.asking_price, allocated_budget, max_budget, current_round, floor_price)
                 await append_negotiation_message(
                     db, negotiation_id,
                     sender="agent", content=f"We accept your price of {amount:,} PKR.",
@@ -329,7 +346,7 @@ async def run_negotiation_agent(
         new_round = await increment_negotiation_round(db, negotiation_id)
 
         if action == "send_offer":
-            offer_amount = _normalize_offer_amount(result.get("amount"), neg.asking_price, allocated_budget, max_budget, current_round)
+            offer_amount = _normalize_offer_amount(result.get("amount"), neg.asking_price, allocated_budget, max_budget, current_round, floor_price)
             msg_content = result.get("message", f"We'd like to offer {offer_amount:,} PKR for your services.")
             msg_id = await append_negotiation_message(
                 db, negotiation_id,
@@ -355,9 +372,9 @@ async def run_negotiation_agent(
             return {"action": "send_offer", "amount": offer_amount, "round": new_round}
 
         elif action == "accept_vendor_price":
-            amount = _normalize_offer_amount(result.get("amount"), neg.asking_price, allocated_budget, max_budget, current_round)
-            if not should_accept_vendor_price(amount, allocated_budget, max_budget):
-                amount = _normalize_offer_amount(allocated_budget, neg.asking_price, allocated_budget, max_budget, current_round)
+            amount = _normalize_offer_amount(result.get("amount"), neg.asking_price, allocated_budget, max_budget, current_round, floor_price)
+            if not should_accept_vendor_price(amount, allocated_budget, max_budget, floor_price):
+                amount = _normalize_offer_amount(allocated_budget, neg.asking_price, allocated_budget, max_budget, current_round, floor_price)
             await append_negotiation_message(
                 db, negotiation_id,
                 sender="agent", content=f"We accept your price of {amount:,} PKR.",

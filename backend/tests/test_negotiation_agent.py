@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.agents.analyzer_agent import run_analyzer_agent
 from app.agents.negotiation_agent import run_negotiation_agent
-from app.services.vendor_matching import MatchedVendor, match_all_categories
+from app.services.vendor_matching import MatchedVendor, match_all_categories, match_vendors
 
 
 class FakeSession:
@@ -61,6 +61,109 @@ class FakeMatchingSession:
 
 
 @pytest.mark.asyncio
+async def test_match_vendors_excludes_budget_below_floor(monkeypatch):
+    vendor = types.SimpleNamespace(
+        id=uuid.uuid4(),
+        business_name="Budget Limited Caterer",
+        category="Caterer",
+        city="Lahore",
+        verified=True,
+        listed_price=2500,
+        base_price_max=2500,
+        base_price_min=2000,
+        rating=4.5,
+        firebase_uid="vendor-2",
+    )
+
+    class FakeVendorDb:
+        async def execute(self, stmt):
+            return types.SimpleNamespace(
+                scalars=lambda: types.SimpleNamespace(all=lambda: [vendor])
+            )
+
+    monkeypatch.setattr(
+        "app.services.pricing_calculator.calculate_vendor_event_price",
+        lambda **kwargs: (250000, 220000),
+    )
+
+    matched = await match_vendors(
+        db=FakeVendorDb(),
+        category="Caterer",
+        city="Lahore",
+        event_date=None,
+        allocated_budget=200000,
+        guest_count=100,
+        venue_pref="Indoor",
+    )
+
+    assert matched == []
+
+
+@pytest.mark.asyncio
+async def test_negotiation_offer_never_below_floor_price(monkeypatch):
+    negotiation_id = uuid.uuid4()
+
+    async def fake_call_fireworks(*, messages, tools, agent_type, event_id, negotiation_id, **kwargs):
+        return {"amount": 180000, "message": "We can offer a competitive price."}
+
+    async def fake_fetch_negotiation(db, negotiation_id):
+        return types.SimpleNamespace(
+            id=negotiation_id,
+            status="connecting",
+            current_offer=None,
+            asking_price=250000,
+            floor_price=220000,
+            rounds_used=0,
+            max_rounds=5,
+            event_id=uuid.uuid4(),
+            last_processed_message_id=None,
+            processing_locked_at=None,
+            vendor=types.SimpleNamespace(category="Caterer"),
+            event=types.SimpleNamespace(id=uuid.uuid4()),
+        )
+
+    async def fake_append_negotiation_message(*args, **kwargs):
+        return "msg-1"
+
+    async def fake_increment_negotiation_round(*args, **kwargs):
+        return 1
+
+    async def fake_update_negotiation_status(*args, **kwargs):
+        return None
+
+    async def fake_notify_customer(*args, **kwargs):
+        return None
+
+    async def fake_notify_vendor(*args, **kwargs):
+        return None
+
+    def fake_db_session_factory(*args, **kwargs):
+        return FakeSession(
+            allocation=types.SimpleNamespace(allocated_amount=250000, max_budget=275000)
+        )
+
+    monkeypatch.setattr("app.agents.negotiation_agent.call_fireworks", fake_call_fireworks)
+    monkeypatch.setattr("app.agents.negotiation_agent.db_session", fake_db_session_factory)
+    monkeypatch.setattr("app.agents.negotiation_agent._fetch_negotiation", fake_fetch_negotiation)
+    monkeypatch.setattr("app.agents.negotiation_agent.append_negotiation_message", fake_append_negotiation_message)
+    monkeypatch.setattr("app.agents.negotiation_agent.increment_negotiation_round", fake_increment_negotiation_round)
+    monkeypatch.setattr("app.agents.negotiation_agent.update_negotiation_status", fake_update_negotiation_status)
+    monkeypatch.setattr("app.services.notifications.notify_customer_on_negotiation_update", fake_notify_customer)
+    monkeypatch.setattr("app.services.notifications.notify_vendor_on_negotiation_update", fake_notify_vendor)
+
+    result = await run_negotiation_agent(
+        negotiation_id=negotiation_id,
+        vendor_message_content="We can only offer 250,000 PKR.",
+        vendor_offer_amount=250000,
+        vendor_message_type="counter",
+    )
+
+    assert result["action"] == "accept_vendor_price"
+    assert result["amount"] >= 220000
+    assert result["amount"] <= 250000
+
+
+@pytest.mark.asyncio
 async def test_full_pipeline_handles_hard_vendor_quote(monkeypatch):
     event_id = uuid.uuid4()
     negotiation_id = uuid.uuid4()
@@ -98,6 +201,7 @@ async def test_full_pipeline_handles_hard_vendor_quote(monkeypatch):
             status="connecting",
             current_offer=None,
             asking_price=450000,
+            floor_price=180000,
             rounds_used=0,
             max_rounds=5,
             event_id=event_id,
@@ -111,6 +215,10 @@ async def test_full_pipeline_handles_hard_vendor_quote(monkeypatch):
         allocation = types.SimpleNamespace(allocated_amount=250000, max_budget=275000)
         return FakeSession(allocation=allocation)
 
+    monkeypatch.setattr(
+        "app.services.pricing_calculator.calculate_vendor_event_price",
+        lambda **kwargs: (240000, 180000),
+    )
     monkeypatch.setattr("app.agents.analyzer_agent.call_fireworks", fake_analyzer_fireworks)
     monkeypatch.setattr("app.agents.analyzer_agent.update_event_status", fake_update_event_status)
     monkeypatch.setattr("app.agents.analyzer_agent.db_session", fake_db_session_factory)
@@ -139,8 +247,8 @@ async def test_full_pipeline_handles_hard_vendor_quote(monkeypatch):
     )
     matched_vendor = matched["Caterer"][0]
     assert matched_vendor.business_name == "Lahore Grand Catering"
-    assert matched_vendor.listed_price == 450000 * 220
-    assert matched_vendor.floor_price == 300000 * 220
+    assert matched_vendor.listed_price == 240000
+    assert matched_vendor.floor_price == 180000
 
     monkeypatch.setattr("app.agents.negotiation_agent.call_fireworks", fake_negotiation_fireworks)
     monkeypatch.setattr("app.agents.negotiation_agent.db_session", fake_db_session_factory)

@@ -95,6 +95,17 @@ async def match_vendors(
 
         price = int(price)
         floor_price = int(floor_price)
+
+        if floor_price > allocated_budget:
+            logger.info(
+                "Skipping vendor %s for %s because floor price %s exceeds category budget %s",
+                v.business_name,
+                category,
+                floor_price,
+                allocated_budget,
+            )
+            continue
+
         budget_delta = abs(price - allocated_budget)
         price_proximity = 1.0 - min(budget_delta / max(price, allocated_budget, 1), 1.0)
         composite = 0.5 * rating_score + 0.5 * price_proximity

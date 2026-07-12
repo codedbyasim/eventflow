@@ -199,11 +199,12 @@ Your constraints:
 - Allocated budget for this category: {allocated_budget} PKR
 - Customer's maximum allowed price for this vendor: {max_budget} PKR  
 - Vendor's listed/asking price: {asking_price} PKR
+- Vendor minimum acceptable price (floor): {floor_price} PKR
 - Negotiation round: {current_round} of {max_rounds}
 
 Strategy:
-- **First Round (Opening Offer)**: Start with a conservative opening offer that stays within the customer's budget. Prefer an offer no higher than the lower of `allocated_budget` and `max_budget`, and never above `max_budget`.
-- **Counter Offers**: If the vendor counters, make a measured counter-offer that stays below the last offer and never above `max_budget`. The goal is to land near the allocated budget, not to overshoot it.
+- **First Round (Opening Offer)**: Start with a conservative opening offer that stays within the customer's budget. Prefer an offer no higher than the lower of `allocated_budget` and `max_budget`, and never above `max_budget`. Never offer below the vendor's floor price.
+- **Counter Offers**: If the vendor counters, make a measured counter-offer that stays below the last offer and never above `max_budget`. The goal is to land near the allocated budget, not to overshoot it. Never offer below the vendor's floor price.
 - **Agreement**: Call `accept_vendor_price` only when the vendor's price is at or below the customer's `allocated_budget` and the price is acceptable for the category. If the vendor's latest counter is already inside the budget envelope, accept it immediately instead of continuing to negotiate.
 - **Walk Away**: Call `walk_away` if the negotiation rounds are exhausted and the vendor's price remains above `max_budget` or if the price is clearly outside the customer's budget.
 - Keep messages professional, concise, and friendly.

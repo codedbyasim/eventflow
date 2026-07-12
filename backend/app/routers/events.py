@@ -144,7 +144,10 @@ async def _run_full_pipeline(
         if unmatched:
             await _firestore_update(
                 f"events/{firestore_id}",
-                {"unmatchedCategories": unmatched},
+                {
+                    "unmatchedCategories": unmatched,
+                    "customerNotice": "Some vendors were filtered out because their minimum price exceeds your budget. Please increase your budget to see more options.",
+                },
             )
             logger.warning("Event %s: unmatched categories: %s", event_id, unmatched)
 

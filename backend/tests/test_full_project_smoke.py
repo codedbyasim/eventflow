@@ -48,9 +48,9 @@ class FakeMatchingSession:
                         category="Caterer",
                         city="Lahore",
                         verified=True,
-                        listed_price=450000,
-                        base_price_max=450000,
-                        base_price_min=300000,
+                        listed_price=1000,
+                        base_price_max=1000,
+                        base_price_min=800,
                         rating=4.8,
                         firebase_uid="vendor-1",
                     )
@@ -112,6 +112,7 @@ async def test_full_project_smoke_flow(monkeypatch):
             status="connecting",
             current_offer=None,
             asking_price=450000,
+            floor_price=180000,
             rounds_used=0,
             max_rounds=5,
             event_id=event_id,
@@ -153,7 +154,7 @@ async def test_full_project_smoke_flow(monkeypatch):
     )
 
     assert matched["Caterer"][0].business_name == "Lahore Grand Catering"
-    assert matched["Caterer"][0].listed_price == 450000 * 220
+    assert matched["Caterer"][0].listed_price == 1000 * 220
 
     monkeypatch.setattr("app.agents.negotiation_agent.call_fireworks", fake_fireworks)
     monkeypatch.setattr("app.agents.negotiation_agent.db_session", fake_db_session_factory)
@@ -166,14 +167,14 @@ async def test_full_project_smoke_flow(monkeypatch):
 
     result = await run_negotiation_agent(
         negotiation_id=negotiation_id,
-        vendor_message_content="We can only do 450,000 PKR for this wedding.",
-        vendor_offer_amount=450000,
+        vendor_message_content="We can only do 240,000 PKR for this wedding.",
+        vendor_offer_amount=240000,
         vendor_message_type="counter",
     )
 
-    assert result["action"] == "send_offer"
+    assert result["action"] == "accept_vendor_price"
+    assert result["amount"] >= 220000
     assert result["amount"] <= 250000
-    assert result["amount"] < 450000 * 220
 
 
 @pytest.mark.asyncio
