@@ -1,3 +1,5 @@
+complete outpuit
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -62,13 +64,12 @@ class _VendorNegotiationDetailScreenState
     if (user != null) {
       final doc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
-          .get();
       final data = doc.data();
       if (data != null && data['vendorProfile'] != null) {
         setState(() {
           _minPrice = (data['vendorProfile']['minPrice'] ?? 0.0).toDouble();
-          _vendorCategory = data['vendorProfile']['category'] as String? ?? '';
+        });
+      }   _vendorCategory = data['vendorProfile']['category'] as String? ?? '';
         });
       }
     }
