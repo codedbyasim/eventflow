@@ -213,8 +213,12 @@ async def run_negotiation_agent(
         
         if allocation:
             allocated_budget = allocation.allocated_amount
-            max_budget = allocation.max_budget or int(allocation.allocated_amount * 1.1)
+            # Use customer's explicit max_budget if set, else use allocated_amount
+            # as hard cap (NO 10% buffer — customer's budget is final)
+            max_budget = allocation.max_budget or allocation.allocated_amount
         else:
+            # Fallback: no allocation found (shouldn't happen in normal flow)
+            # Use 85% of asking price as allocated, asking price as hard max
             allocated_budget = int(neg.asking_price * 0.85)
             max_budget = neg.asking_price
 
