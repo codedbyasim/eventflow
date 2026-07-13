@@ -770,6 +770,58 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
+                            // ── DEBUG INFO (temporary) ──────────────────────
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              margin: const EdgeInsets.only(bottom: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                border: Border.all(color: Colors.orange.shade200),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '🔍 Debug Info (remove after testing):',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                      color: Colors.orange.shade900,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Event ID: ${widget.eventFirestoreId}',
+                                    style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
+                                  ),
+                                  Text(
+                                    'Event Status: $_eventStatus',
+                                    style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
+                                  ),
+                                  Text(
+                                    'Negotiations Count: ${_stateMap.length}',
+                                    style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
+                                  ),
+                                  Text(
+                                    'Is Loading: $_isLoading',
+                                    style: const TextStyle(fontSize: 10, fontFamily: 'monospace'),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _stateMap.isEmpty 
+                                        ? '❌ No negotiations found in Firestore'
+                                        : '✅ ${_stateMap.length} negotiations loaded',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: _stateMap.isEmpty ? Colors.red : Colors.green,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // ───────────────────────────────────────────────
                             if (_eventStatus == 'ready' ||
                                 _eventStatus == 'cancelled') ...[
                               const Icon(
