@@ -47,7 +47,14 @@ async def vendor_reply_webhook(
     from app.models.vendor import Vendor
     result = await db.execute(select(Vendor).where(Vendor.id == neg.vendor_id))
     vendor_record = result.scalar_one_or_none()
-    if vendor_record is None or vendor_record.firebase_uid != user.uid:
+    if vendor_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Vendor record not found for this negotiation",
+        )
+    # Allow if firebase_uid matches, OR if the vendor has no firebase_uid yet
+    # (seeded vendor not yet claimed — reconciliation will handle it).
+    if vendor_record.firebase_uid is not None and vendor_record.firebase_uid != user.uid:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not the assigned vendor for this negotiation",

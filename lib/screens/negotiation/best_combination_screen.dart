@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import '../../core/theme/app_colors.dart';
+import '../../services/backend_service.dart';
 import 'package:go_router/go_router.dart';
 
 // --- MODELS ---
@@ -31,6 +32,7 @@ class VendorPackage {
 
 class PackageVendor {
   final String vendorId;
+  final String negotiationId; // Postgres UUID — needed for /bookings/confirm
   final String vendorName;
   final String category;
   final double askingPrice;
@@ -41,6 +43,7 @@ class PackageVendor {
 
   PackageVendor({
     required this.vendorId,
+    required this.negotiationId,
     required this.vendorName,
     required this.category,
     required this.askingPrice,
@@ -133,6 +136,7 @@ class _BestCombinationScreenState extends State<BestCombinationScreen> with Tick
         final finalNum = (v['final_price'] as num?)?.toDouble() ?? askingNum;
         return PackageVendor(
           vendorId: v['vendor_id'] as String? ?? '',
+          negotiationId: v['negotiation_id'] as String? ?? '',
           vendorName: v['business_name'] as String? ?? entry.key,
           category: entry.key,
           askingPrice: askingNum,
@@ -176,26 +180,74 @@ class _BestCombinationScreenState extends State<BestCombinationScreen> with Tick
     HapticFeedback.heavyImpact();
   }
 
-  Future<void> _submitBooking(double runningTotal, double runningSavings) async {
-    setState(() {
-      isSubmitting = true;
-    });
+  /// Real booking submission — calls POST /bookings/confirm on the backend.
+  /// [onDone] is called on the sheet's own setState so the button updates
+  /// correctly even inside the StatefulBuilder.
+  Future<void> _submitBooking(
+    double runningTotal,
+    double runningSavings,
+    void Function(void Function()) setSheetState,
+  ) async {
+    // Guard: all selected vendors must have a real negotiation ID
+    final selected = _loadedPackage!.vendors
+        .where((v) => selectedVendorIds.contains(v.vendorId))
+        .toList();
 
-    // Mocking the Firestore batch write delay
-    await Future.delayed(const Duration(seconds: 2));
+    if (selected.any((v) => v.negotiationId.isEmpty)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Some vendor data is missing. Please go back and try again.'),
+          backgroundColor: Colors.redAccent,
+        ));
+      }
+      setSheetState(() => isSubmitting = false);
+      setState(() => isSubmitting = false);
+      return;
+    }
 
-    if (!mounted) return;
+    try {
+      final body = <String, dynamic>{
+        'event_id': widget.eventFirestoreId,
+        'vendors': selected.map((v) => {
+          'negotiation_id': v.negotiationId,
+          'vendor_id': v.vendorId,
+        }).toList(),
+      };
 
-    final newBookingId = 'EF-${DateTime.now().millisecondsSinceEpoch}';
-    
-    setState(() {
-      isSubmitting = false;
-      bookingId = newBookingId;
-      isConfirmSheetOpen = false;
-    });
+      final response = await BackendService.instance.post('/bookings/confirm', body: body);
+      final confirmedId = (response['booking_ids'] as List?)?.first?.toString()
+          ?? 'EF-${DateTime.now().millisecondsSinceEpoch}';
 
-    Navigator.pop(context); // Close the confirmation bottom sheet
-    _showSuccessSheet(newBookingId, runningSavings);
+      if (!mounted) return;
+
+      setSheetState(() => isSubmitting = false);
+      setState(() {
+        isSubmitting = false;
+        bookingId = confirmedId;
+        isConfirmSheetOpen = false;
+      });
+
+      Navigator.pop(context); // close confirmation sheet
+      _showSuccessSheet(confirmedId, runningSavings);
+    } on BackendException catch (e) {
+      if (!mounted) return;
+      setSheetState(() => isSubmitting = false);
+      setState(() => isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Booking failed: ${e.message}'),
+        backgroundColor: Colors.redAccent,
+        duration: const Duration(seconds: 6),
+      ));
+    } catch (e) {
+      if (!mounted) return;
+      setSheetState(() => isSubmitting = false);
+      setState(() => isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Booking failed: $e'),
+        backgroundColor: Colors.redAccent,
+        duration: const Duration(seconds: 6),
+      ));
+    }
   }
 
   void _showConfirmationSheet(double runningTotal, double runningSavings, String savingsPercentStr) {
@@ -388,22 +440,17 @@ class _BestCombinationScreenState extends State<BestCombinationScreen> with Tick
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
                                   elevation: 0,
                                 ),
-                                onPressed: () {
-                                  if (!acceptedTerms) {
-                                    _shakeTerms();
-                                  } else {
-                                    setSheetState(() => isSubmitting = true); // update local sheet state
-                                    _submitBooking(runningTotal, runningSavings).catchError((_) {
-                                      setSheetState(() => isSubmitting = false);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: const Text("Booking failed. Please try again."),
-                                          action: SnackBarAction(label: "Retry", onPressed: () => _submitBooking(runningTotal, runningSavings)),
-                                        )
-                                      );
-                                    });
-                                  }
-                                },
+                                onPressed: isSubmitting
+                                    ? null
+                                    : () {
+                                        if (!acceptedTerms) {
+                                          _shakeTerms();
+                                        } else {
+                                          setSheetState(() => isSubmitting = true);
+                                          setState(() => isSubmitting = true);
+                                          _submitBooking(runningTotal, runningSavings, setSheetState);
+                                        }
+                                      },
                                 child: isSubmitting
                                   ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                                   : Text("Confirm Booking", style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),

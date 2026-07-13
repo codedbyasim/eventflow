@@ -57,14 +57,33 @@ class FirebaseUser:
 
 
 async def _fetch_role(uid: str) -> str | None:
-    """Look up the user's role from Firestore users/{uid}.role without blocking the event loop."""
-    try:
-        db = get_firestore_client()
-        doc = await asyncio.to_thread(lambda: db.collection("users").document(uid).get())
-        if doc.exists:
-            return doc.to_dict().get("role")
-    except Exception as exc:
-        logger.warning("Could not fetch role for uid=%s: %s", uid, exc)
+    """Look up the user's role from Firestore users/{uid}.role without blocking the event loop.
+
+    Retry once on transient failures so a cold-start Firestore connection does
+    not cause the entire request to return a null role and trigger a 403.
+    """
+    for attempt in range(2):
+        try:
+            db = get_firestore_client()
+            doc = await asyncio.to_thread(lambda: db.collection("users").document(uid).get())
+            if doc.exists:
+                role = doc.to_dict().get("role")
+                if role:
+                    return role
+                # Doc exists but role field missing — treat as customer (safe default)
+                logger.warning(
+                    "Firestore users/%s exists but has no 'role' field — defaulting to 'customer'", uid
+                )
+                return "customer"
+            # Doc does not exist yet (race: Flutter wrote to Auth but Firestore write
+            # is still in-flight). Wait briefly before the second attempt.
+            if attempt == 0:
+                await asyncio.sleep(0.4)
+        except Exception as exc:
+            logger.warning("Could not fetch role for uid=%s (attempt %d): %s", uid, attempt + 1, exc)
+            if attempt == 0:
+                await asyncio.sleep(0.4)
+    logger.error("Role lookup exhausted retries for uid=%s — returning None", uid)
     return None
 
 
@@ -96,7 +115,13 @@ async def verify_token(
 # ── Convenience role-gated dependencies ──────────────────────────────────────
 
 async def require_customer(user: FirebaseUser = Depends(verify_token)) -> FirebaseUser:
-    user.require_role("customer")
+    # role can be None on first call if Firestore write is still in-flight.
+    # Vendors always have an explicit "vendor" role; treat None as "customer".
+    if user.role == "vendor":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Vendor accounts cannot create customer events.",
+        )
     return user
 
 

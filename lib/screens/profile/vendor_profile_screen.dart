@@ -7,6 +7,25 @@ import 'package:table_calendar/table_calendar.dart';
 import '../../core/theme/app_colors.dart';
 import 'package:go_router/go_router.dart';
 
+Map<String, dynamic> buildVendorProfilePayload({
+  required String businessName,
+  String? city,
+  required double basePrice,
+  required double minPrice,
+  required List<String> blockedDates,
+}) {
+  return {
+    'updatedAt': FieldValue.serverTimestamp(),
+    'vendorProfile': {
+      'businessName': businessName,
+      'city': city,
+      'basePrice': basePrice,
+      'minPrice': minPrice,
+      'blockedDates': blockedDates,
+    },
+  };
+}
+
 class VendorProfileScreen extends StatefulWidget {
   const VendorProfileScreen({super.key});
 
@@ -122,14 +141,18 @@ class _VendorProfileScreenState extends State<VendorProfileScreen> {
 
       final isoBlockedDates = _blockedDates.map((d) => d.toIso8601String()).toList();
 
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-        'updatedAt': FieldValue.serverTimestamp(),
-        'vendorProfile.businessName': _businessNameController.text.trim(),
-        'vendorProfile.city': _selectedCity,
-        'vendorProfile.basePrice': basePrice,
-        'vendorProfile.minPrice': minPrice,
-        'vendorProfile.blockedDates': isoBlockedDates,
-      });
+      final payload = buildVendorProfilePayload(
+        businessName: _businessNameController.text.trim(),
+        city: _selectedCity,
+        basePrice: basePrice,
+        minPrice: minPrice,
+        blockedDates: isoBlockedDates,
+      );
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(payload, SetOptions(merge: true));
 
       if (mounted) {
         setState(() {

@@ -448,6 +448,16 @@ class _VendorNegotiationDetailScreenState
     NegotiationDetail detail,
     List<NegotiationMessage> messages,
   ) {
+    // Firestore doc status is the authoritative source — the backend (agent or
+    // vendor-reply handler) always writes the terminal status to the doc first.
+    // Checking it first prevents the accept/counter panel from showing after the
+    // agent has already closed the deal on the customer's behalf.
+    if (detail.status == 'deal') return 'deal';
+    if (detail.status == 'no_deal') return 'no_deal';
+    if (detail.status == 'expired') return 'expired';
+
+    // Fallback: derive from messages in case the Firestore doc update arrives
+    // slightly after the messages subcollection update (eventual consistency).
     if (messages.any((message) => message.messageType == 'accept')) {
       return 'deal';
     }

@@ -68,14 +68,30 @@ class BackendService {
   }
 
   Map<String, dynamic> _handleResponse(http.Response response) {
-    final body = response.body.isEmpty ? '{}' : response.body;
-    final decoded = jsonDecode(body);
+    final rawBody = response.body.isEmpty ? '{}' : response.body;
+
+    // Guard: backend sometimes returns an HTML error page (e.g. 502/503 from
+    // the hosting proxy, or an unhandled 500). jsonDecode would throw a
+    // FormatException in that case and swallow the real status code.
+    // Parse safely and fall back to a plain-text detail message.
+    dynamic decoded;
+    try {
+      decoded = jsonDecode(rawBody);
+    } catch (_) {
+      // Non-JSON body (HTML, plain text) — wrap it so callers get a clean error
+      decoded = <String, dynamic>{
+        'detail': 'Server error (${response.statusCode}): '
+            '${rawBody.length > 200 ? rawBody.substring(0, 200) : rawBody}',
+      };
+    }
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return decoded as Map<String, dynamic>;
     }
 
-    final detail = decoded is Map ? (decoded['detail'] ?? 'Unknown error') : response.body;
+    final detail = decoded is Map
+        ? (decoded['detail'] ?? 'Unknown error')
+        : rawBody;
     throw BackendException(response.statusCode, detail.toString());
   }
 }

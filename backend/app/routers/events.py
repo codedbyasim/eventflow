@@ -39,46 +39,65 @@ async def create_event(
     Response returns immediately with event_id and firestore_id.
     The Analyzer Agent, vendor matching, and negotiation spawn run as a BackgroundTask.
     """
+    from fastapi import HTTPException as FastAPIHTTPException
+
     # ── Ensure user exists in Postgres ────────────────────────────────────
-    pg_user = await _get_or_create_user(db, user)
+    try:
+        pg_user = await _get_or_create_user(db, user)
+    except Exception as exc:
+        logger.exception("Failed to upsert user %s: %s", user.uid, exc)
+        raise FastAPIHTTPException(status_code=500, detail=f"User setup failed: {exc}")
 
     # ── Create event record ───────────────────────────────────────────────
     event_id = uuid.uuid4()
     firestore_id = f"evt_{event_id.hex[:16]}"
 
-    event = Event(
-        id=event_id,
-        firestore_id=firestore_id,
-        customer_id=pg_user.id,
-        customer_firebase_uid=user.uid,
-        type=body.event_type,
-        event_date=body.event_date,
-        city=body.city,
-        guest_count=body.guest_count,
-        indoor_outdoor=body.indoor_outdoor,
-        total_budget=body.total_budget,
-        negotiation_flexibility=body.negotiation_flexibility,
-        status="draft",
-    )
-    db.add(event)
-    await db.flush()
+    try:
+        event = Event(
+            id=event_id,
+            firestore_id=firestore_id,
+            customer_id=pg_user.id,
+            customer_firebase_uid=user.uid,
+            type=body.event_type,
+            event_date=body.event_date,
+            city=body.city,
+            guest_count=body.guest_count,
+            indoor_outdoor=body.indoor_outdoor,
+            total_budget=body.total_budget,
+            negotiation_flexibility=body.negotiation_flexibility,
+            status="draft",
+        )
+        db.add(event)
+        await db.flush()
+    except Exception as exc:
+        logger.exception("Failed to create event record for user %s: %s", user.uid, exc)
+        raise FastAPIHTTPException(status_code=500, detail=f"Event creation failed: {exc}")
 
     # Mirror event to Firestore immediately so client can listen
-    await _firestore_update(
-        f"events/{firestore_id}",
-        {
-            "customerId": user.uid,
-            "type": body.event_type,
-            "totalBudget": body.total_budget,
-            "status": "draft",
-            "city": body.city or "",
-            "guestCount": body.guest_count,
-            "categories": body.categories,
-            "createdAt": datetime.now(timezone.utc).isoformat(),
-        },
-    )
+    try:
+        await _firestore_update(
+            f"events/{firestore_id}",
+            {
+                "customerId": user.uid,
+                "type": body.event_type,
+                "totalBudget": body.total_budget,
+                "status": "draft",
+                "city": body.city or "",
+                "guestCount": body.guest_count,
+                "categories": body.categories,
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+    except Exception as exc:
+        # Firestore mirror failure is non-fatal for the HTTP response
+        logger.warning("Firestore mirror failed for event %s: %s", event_id, exc)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as exc:
+        logger.exception("DB commit failed for event %s: %s", event_id, exc)
+        raise FastAPIHTTPException(status_code=500, detail=f"Database error: {exc}")
+
     logger.info("Event %s created (firestore_id=%s) for user %s", event_id, firestore_id, user.uid)
 
     # ── Kick off the full pipeline as a background task ───────────────────
@@ -175,10 +194,12 @@ async def _get_or_create_user(db: AsyncSession, user: FirebaseUser) -> User:
     result = await db.execute(select(User).where(User.firebase_uid == user.uid))
     pg_user = result.scalar_one_or_none()
     if pg_user is None:
+        # role can be None on very first call (Firestore write still in-flight).
+        # Default to "customer" — only customers can reach this endpoint.
         pg_user = User(
             id=uuid.uuid4(),
             firebase_uid=user.uid,
-            role="customer",
+            role=user.role or "customer",
             email=user.email,
         )
         db.add(pg_user)

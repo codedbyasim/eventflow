@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/localization/language_provider.dart';
 import '../../models/event_setup_model.dart';
@@ -551,6 +552,13 @@ class _BudgetScreenState extends State<BudgetScreen> {
     );
 
     try {
+      // Force-refresh the Firebase ID token before calling the backend.
+      // This ensures the backend role-check sees the latest Firestore role
+      // (avoids 403 on accounts created moments ago).
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('Not signed in. Please sign in again.');
+      await user.getIdToken(true);
+
       // FR-EVT-07: submit to backend — triggers Analyzer Agent within 3s
       final result = await EventService.instance.submitEvent(
         updatedModel,
@@ -569,7 +577,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
               LiveDashboardScreen(
             model: updatedModel,
             allocations: _budgetProvider.allocations,
-            eventFirestoreId: result.eventFirestoreId, // real ID from backend
+            eventFirestoreId: result.eventFirestoreId,
           ),
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FadeTransition(opacity: animation, child: child);
@@ -581,12 +589,14 @@ class _BudgetScreenState extends State<BudgetScreen> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Could not start negotiations: ${e.message}'),
         backgroundColor: Colors.redAccent,
+        duration: const Duration(seconds: 6),
       ));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Network error — please try again.'),
+        content: Text('Error: $e'),
         backgroundColor: Colors.redAccent,
+        duration: const Duration(seconds: 6),
       ));
     } finally {
       if (mounted) setState(() => _isSubmitting = false);

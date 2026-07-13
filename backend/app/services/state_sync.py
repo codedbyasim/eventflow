@@ -151,6 +151,11 @@ async def update_negotiation_status(
             fs_data["currentOffer"] = current_offer
         if final_price is not None:
             fs_data["finalPrice"] = final_price
+        # Mirror closed_at for terminal states so vendor dashboard updates instantly
+        if status in ("deal", "no_deal", "expired"):
+            fs_data["closedAt"] = datetime.now(timezone.utc).isoformat()
+            # Always force isVendorTurn=False on terminal states regardless of caller
+            fs_data["isVendorTurn"] = False
         await _firestore_update(f"negotiations/{row.firestore_id}", fs_data)
 
     logger.info("Negotiation %s status → %s (vendorTurn=%s)", negotiation_id, status, is_vendor_turn)

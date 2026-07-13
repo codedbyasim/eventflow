@@ -95,8 +95,14 @@ async def onboard_vendor(
     db: AsyncSession = Depends(get_db),
     user: FirebaseUser = Depends(verify_token),
 ):
-    if user.role != "vendor":
-        raise HTTPException(status_code=400, detail="Only vendors can onboard.")
+    # Allow role=="vendor" OR role==None/missing (Firestore write may still be
+    # in-flight when the client calls this endpoint immediately after sign-up).
+    # We do NOT allow role=="customer" to prevent accidental cross-role calls.
+    if user.role == "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account is registered as a customer. Please sign in as a vendor.",
+        )
 
     # Normalize category keys to match standard Postgres/matching categories
     category_map = {

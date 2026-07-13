@@ -117,6 +117,10 @@ class _VendorOnboardingScreenState extends State<VendorOnboardingScreen> {
         }
       }, SetOptions(merge: true));
 
+      // Force-refresh the ID token so the backend sees the latest Firestore claims.
+      // This ensures the role lookup on the backend gets the freshly written role.
+      await user.getIdToken(true);
+
       // Sync onboarding details to PostgreSQL database so they can match/claim negotiations
       String pgCategory = 'Caterer';
       switch (_selectedCategory) {
@@ -142,10 +146,24 @@ class _VendorOnboardingScreenState extends State<VendorOnboardingScreen> {
       if (mounted) {
         context.go('/vendor/home');
       }
+    } on BackendException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${tr('save_error')}: ${e.message}'),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(tr('save_error'))),
+          SnackBar(
+            content: Text('${tr('save_error')}: $e'),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 5),
+          ),
         );
       }
     } finally {
