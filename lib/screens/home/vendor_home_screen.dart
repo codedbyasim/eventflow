@@ -131,6 +131,7 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
                 final isVendorTurn = data['isVendorTurn'] as bool? ?? false;
                 
                 if (['deal', 'no_deal', 'expired'].contains(status)) {
+                  // Terminal states — don't show in "active negotiations"
                   if (status == 'deal') {
                     final dealTimestamp = data['dealDate'] as Timestamp?;
                     if (dealTimestamp != null) {
@@ -148,10 +149,13 @@ class _VendorHomeScreenState extends State<VendorHomeScreen> {
                     pendingCount++;
                   } else {
                     activeCount++;
-                    activeNegotiations.add(data);
                   }
+                  // Only add to activeNegotiations if NOT terminal
+                  activeNegotiations.add(data);
                 }
-                if (isVendorTurn) myTurnCount++;
+                if (isVendorTurn && !['deal', 'no_deal', 'expired'].contains(status)) {
+                  myTurnCount++;
+                }
               }
               
               // Sort active negotiations by lastActivity descending

@@ -305,7 +305,13 @@ class _VendorDashboardViewState extends State<VendorDashboardView> with SingleTi
               final neg = widget.data.recentNegotiations[index];
               final isMyTurn = neg['isVendorTurn'] as bool? ?? false;
               final eventTypeKey = neg['eventType'] as String? ?? 'other';
-              final currentOffer = (neg['currentOffer'] ?? 0.0).toString();
+              final status = neg['status'] as String? ?? '';
+              
+              // Use finalPrice if deal closed, else currentOffer (ongoing negotiation)
+              final displayPrice = (status == 'deal' && neg['finalPrice'] != null)
+                  ? (neg['finalPrice'] as num).toDouble()
+                  : (neg['currentOffer'] as num?)?.toDouble() ?? 0.0;
+              final priceStr = displayPrice.toStringAsFixed(0);
               
               DateTime eventDate = DateTime.now();
               if (neg['eventDate'] is Timestamp) {
@@ -349,7 +355,9 @@ class _VendorDashboardViewState extends State<VendorDashboardView> with SingleTi
                             Text(dateStr, style: GoogleFonts.inter(fontSize: 13, color: Colors.grey.shade600)),
                             const SizedBox(height: 8),
                             Text(
-                              tr('current_offer', args: [currentOffer]),
+                              status == 'deal' 
+                                  ? tr('deal_price', args: [priceStr])
+                                  : tr('current_offer', args: [priceStr]),
                               style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.goldenBrown),
                             ),
                           ],
