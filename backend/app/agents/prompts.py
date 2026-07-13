@@ -101,8 +101,9 @@ AGGREGATOR_TOOLS = [
             "name": "compile_package",
             "description": (
                 "Review all closed negotiations for the event and select the best vendor "
-                "per category to form the final recommended package. Compute savings and "
-                "flag any categories that exceed the customer's total budget."
+                "per category to form the final recommended package. "
+                "Only select the best vendor_id and negotiation_id per category — "
+                "the backend will compute all prices and savings from the database."
             ),
             "parameters": {
                 "type": "object",
@@ -110,46 +111,32 @@ AGGREGATOR_TOOLS = [
                     "best_vendors": {
                         "type": "object",
                         "description": (
-                            "Mapping of category → selected vendor details. "
-                            "Each value is an object with 'vendor_id', 'business_name', "
-                            "'final_price', and 'negotiation_id'."
+                            "Mapping of category → selected vendor. "
+                            "Each value must include 'vendor_id', 'negotiation_id', and 'business_name'. "
+                            "Always prefer vendors with 'deal' status and the lowest final_price. "
+                            "Do NOT include asking_price, savings, or total fields — the backend computes those."
                         ),
                         "additionalProperties": {
                             "type": "object",
                             "properties": {
                                 "vendor_id": {"type": "string"},
-                                "business_name": {"type": "string"},
-                                "final_price": {"type": "number"},
                                 "negotiation_id": {"type": "string"},
+                                "business_name": {"type": "string"},
                             },
+                            "required": ["vendor_id", "negotiation_id", "business_name"],
                         },
-                    },
-                    "total_cost": {
-                        "type": "number",
-                        "description": "Sum of all selected vendor prices (PKR).",
-                    },
-                    "total_savings": {
-                        "type": "number",
-                        "description": "Total savings vs. vendors' original asking prices (PKR).",
-                    },
-                    "savings_percentage": {
-                        "type": "number",
-                        "description": "savings / sum(asking_prices) * 100",
                     },
                     "budget_exceeded_categories": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Categories where the selected price exceeds the allocated budget.",
+                        "description": "Categories where the selected vendor's final price exceeds the allocated budget.",
                     },
                     "summary": {
                         "type": "string",
-                        "description": "A human-readable optimization summary for the customer.",
+                        "description": "A concise human-readable summary of the package for the customer.",
                     },
                 },
-                "required": [
-                    "best_vendors", "total_cost", "total_savings",
-                    "savings_percentage", "budget_exceeded_categories", "summary",
-                ],
+                "required": ["best_vendors", "budget_exceeded_categories", "summary"],
             },
         },
     }

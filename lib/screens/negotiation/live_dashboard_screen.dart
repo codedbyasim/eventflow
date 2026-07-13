@@ -114,11 +114,14 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
   // Firestore listener subscriptions
   final List<StreamSubscription> _subscriptions = [];
 
-  // Live state map: category → negotiation state
+  // Live state map: negotiationId → negotiation state
   final Map<String, VendorNegotiationState> _stateMap = {};
   bool _allFinished = false;
   bool _isLoading = true;
   String _eventStatus = 'draft';
+
+  // Safety timeout — if no negotiations appear within 20s, stop spinning
+  static const _loadingTimeout = Duration(seconds: 20);
 
   @override
   void initState() {
@@ -132,6 +135,14 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
     )..repeat(reverse: true);
 
     _startFirestoreListeners();
+
+    // Safety: stop the loading spinner after timeout even if Firestore
+    // hasn't returned data yet (e.g. network slow, field missing on docs)
+    Future.delayed(_loadingTimeout, () {
+      if (mounted && _isLoading) {
+        setState(() => _isLoading = false);
+      }
+    });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showSuccessDialog();
@@ -300,9 +311,8 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
             final nextStateMap = <String, VendorNegotiationState>{};
             for (final doc in snapshot.docs) {
               final data = doc.data();
-              if (data == null) continue;
-
               final state = VendorNegotiationState.fromFirestore(data, doc.id);
+              // Key by negotiationId (Firestore doc ID) — unique per vendor
               nextStateMap[state.negotiationId] = state;
             }
 
@@ -1106,7 +1116,7 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
         context,
         MaterialPageRoute(
           builder: (_) => AgentThreadScreen(
-            vendorName: vendor,
+            vendorName: state.vendorName,
             negotiationFirestoreId: state.negotiationId,
           ),
         ),
@@ -1155,21 +1165,36 @@ class _LiveDashboardScreenState extends State<LiveDashboardScreen>
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    _getLocalizedVendor(vendor, loc),
-                    textAlign: isUrdu ? TextAlign.right : TextAlign.left,
-                    style: loc.fontStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF333333),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        state.vendorName,
+                        textAlign: isUrdu ? TextAlign.right : TextAlign.left,
+                        style: loc.fontStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF333333),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        _getLocalizedVendor(vendor, loc),
+                        textAlign: isUrdu ? TextAlign.right : TextAlign.left,
+                        style: loc.fontStyle(
+                          fontSize: 10,
+                          color: const Color(0xFF888888),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
             // ── STATUS CHIP ────────────────────────────────────────────────
             if (isDeal)

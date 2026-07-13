@@ -111,6 +111,55 @@ async def run_aggregator_agent(
         max_tokens=4096,
     )
 
+    # ── Enrich result with authoritative Postgres data ────────────────────
+    # The LLM only selects which vendor per category. We compute all prices,
+    # savings and totals from the database so numbers are always accurate.
+    neg_by_id: dict[str, tuple[Negotiation, Vendor]] = {
+        str(neg.id): (neg, vendor) for neg, vendor in negotiations
+    }
+    neg_by_firestore_id: dict[str, tuple[Negotiation, Vendor]] = {
+        str(neg.firestore_id): (neg, vendor) for neg, vendor in negotiations
+    }
+
+    enriched_vendors: dict[str, Any] = {}
+    total_cost = 0
+    total_savings = 0
+    total_asking = 0
+
+    for category, vendor_data in (result.get("best_vendors") or {}).items():
+        neg_id_str = str(vendor_data.get("negotiation_id", ""))
+        pair = neg_by_id.get(neg_id_str) or neg_by_firestore_id.get(neg_id_str)
+
+        if pair is None:
+            # LLM returned an ID we can't match — skip this vendor
+            logger.warning("Aggregator: unknown negotiation_id '%s' for category '%s'", neg_id_str, category)
+            continue
+
+        neg, vendor = pair
+        final_price = int(neg.final_price or neg.asking_price or 0)
+        asking_price = int(neg.asking_price or 0)
+        savings = max(0, asking_price - final_price)
+
+        enriched_vendors[category] = {
+            "vendor_id": str(vendor.id),
+            "negotiation_id": str(neg.id),
+            "business_name": vendor.business_name,
+            "final_price": final_price,
+            "asking_price": asking_price,
+            "savings": savings,
+        }
+        total_cost += final_price
+        total_savings += savings
+        total_asking += asking_price
+
+    savings_percentage = round((total_savings / total_asking * 100), 1) if total_asking > 0 else 0.0
+
+    # Rebuild result with enriched data
+    result["best_vendors"] = enriched_vendors
+    result["total_cost"] = total_cost
+    result["total_savings"] = total_savings
+    result["savings_percentage"] = savings_percentage
+
     # Mirror package to Firestore for the Flutter 'Best Combination' screen
     await _firestore_update(
         f"events/{event_firestore_id}",

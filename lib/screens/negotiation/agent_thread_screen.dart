@@ -101,6 +101,7 @@ class _MessageBubble extends StatelessWidget {
     final sender = data['sender'] as String? ?? 'system';
     final content = data['content'] as String? ?? '';
     final offerAmount = data['offerAmount'] as num?;
+    final messageType = data['messageType'] as String? ?? '';
     final isAgent = sender == 'agent';
     final isSystem = sender == 'system';
 
@@ -114,18 +115,21 @@ class _MessageBubble extends StatelessWidget {
       textColor = const Color(0xFF888888);
       alignment = Alignment.center;
     } else if (isAgent) {
-      // NFR-USE-02: agent messages — left aligned, golden-tinted
       bubbleColor = const Color(0xFFFFF8F0);
       textColor = const Color(0xFF7A4E1E);
       alignment = isUrdu ? Alignment.centerRight : Alignment.centerLeft;
       icon = Icons.smart_toy_outlined;
     } else {
-      // Vendor messages — right aligned, green-tinted
       bubbleColor = const Color(0xFFEDF3E1);
       textColor = const Color(0xFF2E3D26);
       alignment = isUrdu ? Alignment.centerLeft : Alignment.centerRight;
       icon = Icons.person_outline;
     }
+
+    // For offer/counter messages, strip any price mention from the prose
+    // so we don't show two conflicting numbers. The authoritative price is
+    // offerAmount (clamped/validated by the backend).
+    final bool isOffer = messageType == 'offer' || messageType == 'counter';
 
     return Align(
       alignment: alignment,
@@ -149,6 +153,7 @@ class _MessageBubble extends StatelessWidget {
           crossAxisAlignment:
               isSystem ? CrossAxisAlignment.center : CrossAxisAlignment.start,
           children: [
+            // Sender label row (no price badge here — price shown below)
             if (!isSystem)
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -165,33 +170,46 @@ class _MessageBubble extends StatelessWidget {
                       color: textColor,
                     ),
                   ),
-                  if (offerAmount != null) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: textColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'PKR ${NumberFormat('#,###').format(offerAmount.toInt())}',
-                        textDirection: TextDirection.ltr,
-                        style: GoogleFonts.inter(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
-                      ),
-                    ),
-                  ],
                 ],
               ),
-            if (!isSystem) const SizedBox(height: 4),
-            Text(
-              content,
-              style: loc.fontStyle(fontSize: 13, color: textColor),
-            ),
+            if (!isSystem) const SizedBox(height: 6),
+
+            // Message prose — only show if it has content AND it's not purely
+            // a price announcement (we'll show the price widget below instead)
+            if (content.isNotEmpty)
+              Text(
+                content,
+                style: loc.fontStyle(fontSize: 13, color: textColor),
+              ),
+
+            // Authoritative price — shown prominently below the text,
+            // only for offer/counter/accept message types
+            if (isOffer && offerAmount != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'PKR ${NumberFormat('#,###').format(offerAmount.toInt())}',
+                textDirection: TextDirection.ltr,
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: isAgent ? AppColors.goldenBrown : textColor,
+                ),
+              ),
+            ],
+
+            // For accept/reject banners just show the amount if present
+            if (!isOffer && offerAmount != null && messageType == 'accept') ...[
+              const SizedBox(height: 6),
+              Text(
+                'PKR ${NumberFormat('#,###').format(offerAmount.toInt())}',
+                textDirection: TextDirection.ltr,
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.mossGreen,
+                ),
+              ),
+            ],
           ],
         ),
       ),

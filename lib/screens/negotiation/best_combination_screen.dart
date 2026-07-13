@@ -132,8 +132,12 @@ class _BestCombinationScreenState extends State<BestCombinationScreen> with Tick
       final bestVendors = pkg['best_vendors'] as Map<String, dynamic>? ?? {};
       final vendors = bestVendors.entries.map((entry) {
         final v = entry.value as Map<String, dynamic>;
-        final askingNum = (v['asking_price'] as num?)?.toDouble() ?? 0;
-        final finalNum = (v['final_price'] as num?)?.toDouble() ?? askingNum;
+        final finalNum = (v['final_price'] as num?)?.toDouble() ?? 0;
+        // asking_price is now always written by the backend aggregator.
+        // Fall back to final_price if missing (no negative savings).
+        final askingRaw = (v['asking_price'] as num?)?.toDouble();
+        final askingNum = (askingRaw != null && askingRaw > 0) ? askingRaw : finalNum;
+        final savings = (askingNum - finalNum).clamp(0.0, double.infinity);
         return PackageVendor(
           vendorId: v['vendor_id'] as String? ?? '',
           negotiationId: v['negotiation_id'] as String? ?? '',
@@ -141,7 +145,7 @@ class _BestCombinationScreenState extends State<BestCombinationScreen> with Tick
           category: entry.key,
           askingPrice: askingNum,
           negotiatedPrice: finalNum,
-          savings: askingNum - finalNum,
+          savings: savings,
           confirmationStatus: 'pending',
           vendorContact: '',
         );
@@ -672,19 +676,31 @@ class _BestCombinationScreenState extends State<BestCombinationScreen> with Tick
 
             final pkg = _loadedPackage!;
 
-            // Calculate computeds
+            // ── Compute running totals from selected vendors ──────────────
             double runningTotal = 0;
             double runningAsking = 0;
+            double runningSavings = 0;
             for (var v in pkg.vendors) {
               if (selectedVendorIds.contains(v.vendorId)) {
                 runningTotal += v.negotiatedPrice;
+                // askingPrice is now always >= negotiatedPrice (clamped in parser)
                 runningAsking += v.askingPrice;
+                runningSavings += v.savings; // already clamped ≥ 0 in parser
               }
             }
-            double runningSavings = runningAsking - runningTotal;
-            String savingsPercentStr = runningAsking > 0 ? ((runningSavings / runningAsking) * 100).toStringAsFixed(1) : "0.0";
-            bool isOverBudget = runningTotal > widget.eventBudget;
-            bool canConfirm = !isOverBudget && selectedVendorIds.isNotEmpty;
+            // If backend already computed overall savings, prefer it when all
+            // vendors are selected (more accurate — computed from Postgres).
+            final allSelected = selectedVendorIds.length == pkg.vendors.length;
+            if (allSelected && pkg.totalSavings > 0) {
+              runningSavings = pkg.totalSavings;
+            }
+            // Savings percent: use backend value when all selected, else compute
+            final double savingsPercentRaw = allSelected && pkg.savingsPercent > 0
+                ? pkg.savingsPercent
+                : (runningAsking > 0 ? (runningSavings / runningAsking * 100) : 0.0);
+            final String savingsPercentStr = savingsPercentRaw.toStringAsFixed(1);
+            final bool isOverBudget = runningTotal > widget.eventBudget;
+            final bool canConfirm = !isOverBudget && selectedVendorIds.isNotEmpty;
 
             return Column(
               children: [
@@ -825,11 +841,14 @@ class _BestCombinationScreenState extends State<BestCombinationScreen> with Tick
                                       const SizedBox(height: 12),
                                       Row(
                                         children: [
-                                          Text(
-                                            "PKR ${NumberFormat.compact().format(v.askingPrice)}",
-                                            style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF888888), decoration: TextDecoration.lineThrough),
-                                          ),
-                                          const SizedBox(width: 8),
+                                          // Only show asking price strikethrough if it's different from negotiated
+                                          if (v.askingPrice > v.negotiatedPrice) ...[
+                                            Text(
+                                              "PKR ${NumberFormat.compact().format(v.askingPrice)}",
+                                              style: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF888888), decoration: TextDecoration.lineThrough),
+                                            ),
+                                            const SizedBox(width: 8),
+                                          ],
                                           Text(
                                             "PKR ${NumberFormat.compact().format(v.negotiatedPrice)}",
                                             style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.bold, color: const Color(0xFF1A1A1A)),
@@ -837,14 +856,30 @@ class _BestCombinationScreenState extends State<BestCombinationScreen> with Tick
                                         ],
                                       ),
                                       const SizedBox(height: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.mossGreen.withValues(alpha: 0.1),
-                                          borderRadius: BorderRadius.circular(6),
+                                      if (v.savings > 0)
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.mossGreen.withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            "Saved PKR ${NumberFormat('#,###').format(v.savings.toInt())}",
+                                            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.mossGreen),
+                                          ),
+                                        )
+                                      else
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF5F5F5),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            "Final price",
+                                            style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: const Color(0xFF888888)),
+                                          ),
                                         ),
-                                        child: Text("Saved PKR ${NumberFormat('#,###').format(v.savings)}", style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.mossGreen)),
-                                      ),
                                     ],
                                   ),
                                 ),
