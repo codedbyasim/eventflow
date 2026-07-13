@@ -75,12 +75,14 @@ async def orchestrate_negotiations(
                 neg_firestore_id = f"neg_{neg_id.hex[:16]}"
                 allocated = int(allocations.get(category, vendor.listed_price))
                 explicit_max = (per_category_max or {}).get(category)
-                flexibility = float(event.negotiation_flexibility or 0.15)
-
+                
+                # STRICT BUDGET MODE: Customer's budget is the hard cap, no flexibility buffer.
+                # If customer set explicit_max per category, use it. Else use allocated amount.
+                # No multiplication by (1 + flexibility) — customer's word is final.
                 if explicit_max is not None:
-                    max_budget = int(min(allocated * (1.0 + flexibility), explicit_max))
+                    max_budget = int(min(allocated, explicit_max))
                 else:
-                    max_budget = int(allocated * (1.0 + flexibility))
+                    max_budget = allocated
 
                 db.add(Negotiation(
                     id=neg_id,
